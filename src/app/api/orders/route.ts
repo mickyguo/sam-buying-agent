@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { OrderStatus, OrderType, ProductStatus } from '@prisma/client'
+import { OrderStatus, OrderType, ProductStatus } from '@/generated/prisma/client'
 import { requireAuthUser } from '@/lib/shop-auth'
 import { prisma } from '@/lib/db'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'

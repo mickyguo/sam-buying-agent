@@ -1,14 +1,11 @@
 {
-  "buildCommand": "pnpm run build:edgeone",
+  "buildCommand": "pnpm run build",
   "installCommand": "pnpm install",
   "outputDirectory": ".next",
   "nodeVersion": "22.11.0",
   "cloudFunctions": {
     "mainlandRegions": ["ap-guangzhou"],
     "nodejs": {
-      "externalNodeModules": [
-        "@prisma/client"
-      ],
       "maxDuration": 60
     }
   },

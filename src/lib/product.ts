@@ -1,4 +1,4 @@
-import { ProductStatus } from '@prisma/client'
+import { ProductStatus } from '@/generated/prisma/client'
 import { prisma } from '@/lib/db'
 
 export interface ProductInput {

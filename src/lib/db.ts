@@ -1,7 +1,7 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { PrismaClient } from '@/generated/prisma/client'
 
-// Bump when Prisma schema changes so dev server picks up a fresh client.
-const PRISMA_CACHE_KEY = 'v5-checkout-batch'
+const PRISMA_CACHE_KEY = 'v6-driver-adapter'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -9,7 +9,14 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function createPrismaClient() {
+  const connectionString = process.env.DATABASE_URL
+  if (!connectionString) {
+    throw new Error('DATABASE_URL is not configured')
+  }
+
+  const adapter = new PrismaPg({ connectionString })
   return new PrismaClient({
+    adapter,
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   })
 }
@@ -25,18 +32,9 @@ function getPrismaClient(): PrismaClient {
   }
 
   const client = createPrismaClient()
-  if (process.env.NODE_ENV !== 'production') {
-    globalForPrisma.prisma = client
-    globalForPrisma.prismaCacheKey = PRISMA_CACHE_KEY
-  }
+  globalForPrisma.prisma = client
+  globalForPrisma.prismaCacheKey = PRISMA_CACHE_KEY
   return client
 }
 
-export const prisma =
-  process.env.NODE_ENV === 'production'
-    ? globalForPrisma.prisma ?? createPrismaClient()
-    : getPrismaClient()
-
-if (process.env.NODE_ENV === 'production' && !globalForPrisma.prisma) {
-  globalForPrisma.prisma = prisma
-}
+export const prisma = getPrismaClient()

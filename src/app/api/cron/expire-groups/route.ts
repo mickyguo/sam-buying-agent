@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { OrderStatus } from '@prisma/client'
+import { OrderStatus } from '@/generated/prisma/client'
 import { prisma } from '@/lib/db'
 import {
   cancelExpiredPendingOrders,
