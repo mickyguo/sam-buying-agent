@@ -9,6 +9,11 @@ export async function register() {
     return
   }
 
+  // EdgeOne Pages 使用 edgeone.json schedules 触发定时任务，避免 serverless 里 node-cron 失效
+  if (process.env.NODE_ENV === 'production') {
+    return
+  }
+
   if (global.__groupOrderCronStarted) {
     return
   }

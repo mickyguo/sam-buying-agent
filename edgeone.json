@@ -1,0 +1,26 @@
+{
+  "buildCommand": "pnpm run build",
+  "installCommand": "pnpm install",
+  "outputDirectory": ".next",
+  "nodeVersion": "22.11.0",
+  "cloudFunctions": {
+    "mainlandRegions": ["ap-guangzhou"],
+    "nodejs": {
+      "externalNodeModules": [
+        "@prisma/client",
+        "prisma",
+        ".prisma"
+      ],
+      "maxDuration": 60
+    }
+  },
+  "schedules": [
+    {
+      "name": "expire-groups-and-orders",
+      "cron": "*/10 * * * *",
+      "path": "/api/cron/expire-groups",
+      "method": "POST",
+      "timezone": "Asia/Shanghai"
+    }
+  ]
+}
