@@ -1,5 +1,3 @@
-import cron from 'node-cron'
-
 declare global {
   var __groupOrderCronStarted: boolean | undefined
 }
@@ -9,7 +7,7 @@ export async function register() {
     return
   }
 
-  // EdgeOne Pages 使用 edgeone.json schedules 触发定时任务，避免 serverless 里 node-cron 失效
+  // EdgeOne Pages 使用 edgeone.json schedules 触发定时任务
   if (process.env.NODE_ENV === 'production') {
     return
   }
@@ -20,10 +18,11 @@ export async function register() {
 
   global.__groupOrderCronStarted = true
 
+  const { default: cron } = await import('node-cron')
+
   cron.schedule('*/10 * * * *', async () => {
     try {
-      const { cancelExpiredPendingOrders, expireOpenGroupOrders } =
-        await import('@/lib/group-order')
+      const { cancelExpiredPendingOrders } = await import('@/lib/group-order')
       const cancelled = await cancelExpiredPendingOrders()
       if (cancelled > 0) {
         console.info(`[cron] cancelled ${cancelled} pending orders`)

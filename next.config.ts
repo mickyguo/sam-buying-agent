@@ -1,6 +1,15 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ['@prisma/client'],
+  outputFileTracingExcludes: {
+    '*': [
+      'node_modules/prisma/**',
+      'node_modules/@prisma/engines/**',
+      'node_modules/.prisma/client/libquery_engine-darwin*',
+      'node_modules/@prisma/client/**/libquery_engine-darwin*',
+    ],
+  },
   images: {
     remotePatterns: [
       {
