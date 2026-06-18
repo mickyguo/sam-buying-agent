@@ -1,9 +1,15 @@
-import { resolveApiUrl } from '@/lib/shop/api-url'
+import { isEdgeOnePreviewAuthHtml, resolveApiUrl } from '@/lib/shop/api-url'
 import { getShopToken } from '@/lib/shop/storage'
 
 function parseJsonBody<T>(text: string, url: string, status: number): T {
   const trimmed = text.trim()
   if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    if (trimmed.startsWith('<!') && isEdgeOnePreviewAuthHtml(trimmed)) {
+      throw new Error(
+        'EdgeOne 预览链接已过期或缺少鉴权参数，请从控制台重新点击「预览」获取完整链接，或绑定自定义域名后长期访问',
+      )
+    }
+
     throw new Error(
       trimmed.startsWith('<!')
         ? `接口返回了 HTML 页面（${status} ${url}），请确认 EdgeOne 以 Next.js 全栈模式部署且输出目录为 .next`
