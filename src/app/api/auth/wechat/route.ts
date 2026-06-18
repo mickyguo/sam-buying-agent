@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/db'
-import { signToken, getAuthUser } from '@/lib/shop-auth'
+import { user } from '@/db/schema'
+import { db } from '@/lib/db'
+import { signToken } from '@/lib/shop-auth'
 import { shopUserDefaults } from '@/lib/shop-user'
 import { code2Session } from '@/lib/wechat'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'
@@ -19,29 +20,34 @@ export async function POST(request: NextRequest) {
 
     const session = await code2Session(body.code)
     const openid = session.openid!
-    const user = await prisma.user.upsert({
-      where: { openid },
-      update: {
-        nickname: body.nickname,
-        avatarUrl: body.avatarUrl,
-        name: body.nickname ?? undefined,
-        image: body.avatarUrl ?? undefined,
-      },
-      create: shopUserDefaults(openid, {
-        nickname: body.nickname,
-        avatarUrl: body.avatarUrl,
-      }),
-    })
+    const [userRow] = await db
+      .insert(user)
+      .values(
+        shopUserDefaults(openid, {
+          nickname: body.nickname,
+          avatarUrl: body.avatarUrl,
+        }),
+      )
+      .onConflictDoUpdate({
+        target: user.openid,
+        set: {
+          nickname: body.nickname,
+          avatarUrl: body.avatarUrl,
+          name: body.nickname ?? undefined,
+          image: body.avatarUrl ?? undefined,
+        },
+      })
+      .returning()
 
-    const token = signToken({ userId: user.id, openid: user.openid! })
+    const token = signToken({ userId: userRow.id, openid: userRow.openid! })
 
     return jsonOk({
       token,
       user: {
-        id: user.id,
-        nickname: user.nickname,
-        avatarUrl: user.avatarUrl,
-        phone: user.phone,
+        id: userRow.id,
+        nickname: userRow.nickname,
+        avatarUrl: userRow.avatarUrl,
+        phone: userRow.phone,
       },
     })
   } catch (error) {
@@ -52,16 +58,16 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { getAuthUser } = await import('@/lib/shop-auth')
-    const user = await getAuthUser(request)
-    if (!user) {
+    const userRow = await getAuthUser(request)
+    if (!userRow) {
       return jsonError('请先登录', 401)
     }
 
     return jsonOk({
-      id: user.id,
-      nickname: user.nickname,
-      avatarUrl: user.avatarUrl,
-      phone: user.phone,
+      id: userRow.id,
+      nickname: userRow.nickname,
+      avatarUrl: userRow.avatarUrl,
+      phone: userRow.phone,
     })
   } catch (error) {
     return handleApiError(error)

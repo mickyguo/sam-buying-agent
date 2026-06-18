@@ -1,15 +1,7 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['@prisma/client', '@prisma/adapter-pg', 'pg'],
-  outputFileTracingExcludes: {
-    '*': [
-      'node_modules/.prisma/client/libquery_engine-*',
-      'node_modules/@prisma/client/**/libquery_engine-*',
-      'node_modules/prisma/libquery_engine-*',
-      'node_modules/@prisma/engines/**',
-    ],
-  },
+  serverExternalPackages: ['pg'],
   images: {
     remotePatterns: [
       {

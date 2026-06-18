@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/db'
+import { eq } from 'drizzle-orm'
+import { product } from '@/db/schema'
+import { db } from '@/lib/db'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'
 import {
   deleteProduct,
@@ -15,11 +17,13 @@ interface RouteContext {
 export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params
-    const product = await prisma.product.findUnique({ where: { id } })
-    if (!product) {
+    const productRow = await db.query.product.findFirst({
+      where: eq(product.id, id),
+    })
+    if (!productRow) {
       return jsonError('商品不存在', 404)
     }
-    return jsonOk(serializeProduct(product))
+    return jsonOk(serializeProduct(productRow))
   } catch (error) {
     return handleApiError(error)
   }
@@ -36,9 +40,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const body = (await request.json()) as ProductInput
     validateProductInput(body)
 
-    const product = await prisma.product.update({
-      where: { id },
-      data: {
+    const [productRow] = await db
+      .update(product)
+      .set({
         name: body.name.trim(),
         imageUrl: body.imageUrl.trim(),
         price: body.price,
@@ -47,10 +51,11 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         unitLabel: body.splittable ? body.unitLabel?.trim() : null,
         description: body.description?.trim() ?? null,
         status: body.status,
-      },
-    })
+      })
+      .where(eq(product.id, id))
+      .returning()
 
-    return jsonOk(serializeProduct(product))
+    return jsonOk(serializeProduct(productRow))
   } catch (error) {
     return handleApiError(error)
   }

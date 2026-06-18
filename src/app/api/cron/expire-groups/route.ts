@@ -1,11 +1,13 @@
 import { NextRequest } from 'next/server'
-import { OrderStatus } from '@prisma/client'
-import { prisma } from '@/lib/db'
+import { count, eq } from 'drizzle-orm'
+import { order } from '@/db/schema'
+import { OrderStatus } from '@/db/enums'
 import {
   cancelExpiredPendingOrders,
   expireOpenGroupOrders,
 } from '@/lib/group-order'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'
+import { db } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,13 +28,17 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  const stats = await prisma.order.groupBy({
-    by: ['status'],
-    _count: true,
-  })
+  const stats = await db
+    .select({
+      status: order.status,
+      count: count(),
+    })
+    .from(order)
+    .groupBy(order.status)
 
   return jsonOk({
     orders: stats,
-    pendingPay: stats.find((item) => item.status === OrderStatus.PENDING_PAY)?._count ?? 0,
+    pendingPay:
+      stats.find((item) => item.status === OrderStatus.PENDING_PAY)?.count ?? 0,
   })
 }

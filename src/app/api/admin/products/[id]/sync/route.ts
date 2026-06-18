@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server'
+import { eq } from 'drizzle-orm'
+import { product } from '@/db/schema'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'
 import { verifyAdminPassword } from '@/lib/admin'
-import { prisma } from '@/lib/db'
+import { db } from '@/lib/db'
 import { serializeProduct } from '@/lib/product'
 import { syncSamsProductByExternalId } from '@/lib/sams/import'
 
@@ -16,29 +18,32 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const { id } = await context.params
-    const product = await prisma.product.findUnique({ where: { id } })
-    if (!product) {
+    const productRow = await db.query.product.findFirst({
+      where: eq(product.id, id),
+    })
+    if (!productRow) {
       return jsonError('商品不存在', 404)
     }
-    if (!product.externalId) {
+    if (!productRow.externalId) {
       return jsonError('该商品没有关联的山姆 ID，无法同步', 400)
     }
 
     const synced = await syncSamsProductByExternalId(
-      product.externalId,
-      product.sourceUrl,
+      productRow.externalId,
+      productRow.sourceUrl,
     )
 
-    const updated = await prisma.product.update({
-      where: { id },
-      data: {
+    const [updated] = await db
+      .update(product)
+      .set({
         name: synced.name,
         imageUrl: synced.imageUrl,
         price: synced.priceCents,
-        description: synced.description ?? product.description,
+        description: synced.description ?? productRow.description,
         lastSyncedAt: new Date(),
-      },
-    })
+      })
+      .where(eq(product.id, id))
+      .returning()
 
     return jsonOk(serializeProduct(updated))
   } catch (error) {

@@ -31,8 +31,6 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # database
-/prisma/dev.db
-
 # env files (can opt-in for committing if needed)
 .env*
 

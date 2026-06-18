@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/db'
+import { eq } from 'drizzle-orm'
+import { groupOrder } from '@/db/schema'
+import { db } from '@/lib/db'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'
 import { serializeGroupOrder } from '@/lib/group-order'
 
@@ -10,12 +12,12 @@ interface RouteContext {
 export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params
-    const group = await prisma.groupOrder.findUnique({
-      where: { id },
-      include: {
+    const group = await db.query.groupOrder.findFirst({
+      where: eq(groupOrder.id, id),
+      with: {
         product: true,
         participations: {
-          include: { user: true },
+          with: { user: true },
         },
       },
     })

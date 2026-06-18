@@ -1,17 +1,19 @@
 import { NextRequest } from 'next/server'
-import { OrderStatus, OrderType, ProductStatus } from '@prisma/client'
+import { and, desc, eq } from 'drizzle-orm'
+import { order, product } from '@/db/schema'
+import { OrderStatus, OrderType, ProductStatus, type OrderStatus as OrderStatusType, type OrderType as OrderTypeType, type ProductStatus as ProductStatusType } from '@/db/enums'
 import { requireAuthUser } from '@/lib/shop-auth'
-import { prisma } from '@/lib/db'
+import { db } from '@/lib/db'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'
 import { generateOrderNo } from '@/lib/utils'
 
-function serializeOrder(order: {
+function serializeOrder(orderRow: {
   id: string
   orderNo: string
-  type: OrderType
+  type: OrderTypeType
   units: number
   amount: number
-  status: OrderStatus
+  status: OrderStatusType
   groupOrderId: string | null
   checkoutBatchId: string | null
   createdAt: Date
@@ -22,39 +24,39 @@ function serializeOrder(order: {
     imageUrl: string
     unitLabel: string | null
     splittable: boolean
-    status: ProductStatus
+    status: ProductStatusType
   }
 }) {
   return {
-    id: order.id,
-    orderNo: order.orderNo,
-    type: order.type,
-    units: order.units,
-    amount: order.amount,
-    amountYuan: (order.amount / 100).toFixed(2),
-    status: order.status,
-    groupOrderId: order.groupOrderId,
-    checkoutBatchId: order.checkoutBatchId,
-    createdAt: order.createdAt.toISOString(),
-    paidAt: order.paidAt?.toISOString() ?? null,
+    id: orderRow.id,
+    orderNo: orderRow.orderNo,
+    type: orderRow.type,
+    units: orderRow.units,
+    amount: orderRow.amount,
+    amountYuan: (orderRow.amount / 100).toFixed(2),
+    status: orderRow.status,
+    groupOrderId: orderRow.groupOrderId,
+    checkoutBatchId: orderRow.checkoutBatchId,
+    createdAt: orderRow.createdAt.toISOString(),
+    paidAt: orderRow.paidAt?.toISOString() ?? null,
     product: {
-      id: order.product.id,
-      name: order.product.name,
-      imageUrl: order.product.imageUrl,
-      unitLabel: order.product.unitLabel,
-      splittable: order.product.splittable,
-      status: order.product.status,
+      id: orderRow.product.id,
+      name: orderRow.product.name,
+      imageUrl: orderRow.product.imageUrl,
+      unitLabel: orderRow.product.unitLabel,
+      splittable: orderRow.product.splittable,
+      status: orderRow.product.status,
     },
   }
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuthUser(request)
-    const orders = await prisma.order.findMany({
-      where: { userId: user.id },
-      include: { product: true },
-      orderBy: { createdAt: 'desc' },
+    const userRow = await requireAuthUser(request)
+    const orders = await db.query.order.findMany({
+      where: eq(order.userId, userRow.id),
+      with: { product: true },
+      orderBy: desc(order.createdAt),
     })
 
     return jsonOk(orders.map(serializeOrder))
@@ -65,7 +67,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuthUser(request)
+    const userRow = await requireAuthUser(request)
     const body = (await request.json()) as {
       productId?: string
       checkoutBatchId?: string
@@ -75,39 +77,50 @@ export async function POST(request: NextRequest) {
       return jsonError('缺少商品 ID')
     }
 
-    const product = await prisma.product.findUnique({
-      where: { id: body.productId },
-    })
+    const [productRow] = await db
+      .select()
+      .from(product)
+      .where(eq(product.id, body.productId))
+      .limit(1)
 
-    if (!product || product.status !== ProductStatus.ACTIVE) {
+    if (!productRow || productRow.status !== ProductStatus.ACTIVE) {
       return jsonError('商品不存在或已下架', 404)
     }
-    if (product.splittable) {
+    if (productRow.splittable) {
       return jsonError('可拆分商品请使用拼单功能')
     }
 
     const orderNo = generateOrderNo()
-    const order = await prisma.order.create({
-      data: {
+    const [orderRow] = await db
+      .insert(order)
+      .values({
         orderNo,
-        userId: user.id,
+        userId: userRow.id,
         type: OrderType.DIRECT,
-        productId: product.id,
+        productId: productRow.id,
         units: 1,
-        amount: product.price,
+        amount: productRow.price,
         status: OrderStatus.PENDING_PAY,
         wxOutTradeNo: orderNo,
         checkoutBatchId: body.checkoutBatchId,
-      },
-      include: { product: true },
+      })
+      .returning()
+
+    const orderWithProduct = await db.query.order.findFirst({
+      where: eq(order.id, orderRow.id),
+      with: { product: true },
     })
+
+    if (!orderWithProduct) {
+      return jsonError('订单创建失败', 500)
+    }
 
     return jsonOk(
       {
-        orderId: order.id,
-        amount: order.amount,
-        outTradeNo: order.wxOutTradeNo,
-        order: serializeOrder(order),
+        orderId: orderWithProduct.id,
+        amount: orderWithProduct.amount,
+        outTradeNo: orderWithProduct.wxOutTradeNo,
+        order: serializeOrder(orderWithProduct),
       },
       { status: 201 },
     )

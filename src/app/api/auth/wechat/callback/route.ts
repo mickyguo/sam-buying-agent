@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { user } from '@/db/schema'
+import { db } from '@/lib/db'
 import { signToken } from '@/lib/shop-auth'
 import { shopUserDefaults } from '@/lib/shop-user'
 import { getAppBaseUrl, oauth2AccessToken } from '@/lib/wechat'
@@ -16,19 +17,22 @@ export async function GET(request: NextRequest) {
 
     const session = await oauth2AccessToken(code)
     const openid = session.openid!
-    const user = await prisma.user.upsert({
-      where: { openid },
-      update: {},
-      create: shopUserDefaults(openid),
-    })
+    const [userRow] = await db
+      .insert(user)
+      .values(shopUserDefaults(openid))
+      .onConflictDoUpdate({
+        target: user.openid,
+        set: { updatedAt: new Date() },
+      })
+      .returning()
 
-    const token = signToken({ userId: user.id, openid: user.openid! })
+    const token = signToken({ userId: userRow.id, openid: userRow.openid! })
     const userPayload = encodeURIComponent(
       JSON.stringify({
-        id: user.id,
-        nickname: user.nickname,
-        avatarUrl: user.avatarUrl,
-        phone: user.phone,
+        id: userRow.id,
+        nickname: userRow.nickname,
+        avatarUrl: userRow.avatarUrl,
+        phone: userRow.phone,
       }),
     )
 

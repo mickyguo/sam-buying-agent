@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
-import { ProductStatus } from '@prisma/client'
-import { prisma } from '@/lib/db'
+import { desc, eq } from 'drizzle-orm'
+import { product } from '@/db/schema'
+import { ProductStatus } from '@/db/enums'
+import { db } from '@/lib/db'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'
 import { verifyAdminPassword } from '@/lib/admin'
 import {
@@ -18,9 +20,9 @@ export async function GET(request: NextRequest) {
       return jsonError('管理员密码错误', 403)
     }
 
-    const products = await prisma.product.findMany({
-      where: includeInactive ? undefined : { status: ProductStatus.ACTIVE },
-      orderBy: { createdAt: 'desc' },
+    const products = await db.query.product.findMany({
+      where: includeInactive ? undefined : eq(product.status, ProductStatus.ACTIVE),
+      orderBy: desc(product.createdAt),
     })
 
     return jsonOk(products.map(serializeProduct))
@@ -39,16 +41,17 @@ export async function POST(request: NextRequest) {
     validateProductInput(body)
 
     if (body.externalId) {
-      const existing = await prisma.product.findUnique({
-        where: { externalId: body.externalId },
+      const existing = await db.query.product.findFirst({
+        where: eq(product.externalId, body.externalId),
       })
       if (existing) {
         return jsonError('该山姆商品已入库，请使用重新同步或编辑', 409)
       }
     }
 
-    const product = await prisma.product.create({
-      data: {
+    const [productRow] = await db
+      .insert(product)
+      .values({
         name: body.name.trim(),
         imageUrl: body.imageUrl.trim(),
         price: body.price,
@@ -60,10 +63,10 @@ export async function POST(request: NextRequest) {
         externalId: body.externalId?.trim() ?? null,
         lastSyncedAt: body.externalId ? new Date() : null,
         status: body.status ?? ProductStatus.ACTIVE,
-      },
-    })
+      })
+      .returning()
 
-    return jsonOk(serializeProduct(product), { status: 201 })
+    return jsonOk(serializeProduct(productRow), { status: 201 })
   } catch (error) {
     return handleApiError(error)
   }

@@ -1,37 +1,36 @@
 import { NextRequest } from 'next/server'
+import { and, eq } from 'drizzle-orm'
+import { order } from '@/db/schema'
 import { requireAuthUser } from '@/lib/shop-auth'
-import { prisma } from '@/lib/db'
+import { db } from '@/lib/db'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'
 import { confirmMergePayment, createMergePayment } from '@/lib/merge-pay'
 import { isDevPaymentMode } from '@/lib/wxpay'
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuthUser(request)
+    const userRow = await requireAuthUser(request)
     const body = (await request.json()) as { orderId?: string }
 
     if (!body.orderId) {
       return jsonError('缺少订单 ID')
     }
 
-    const order = await prisma.order.findFirst({
-      where: {
-        id: body.orderId,
-        userId: user.id,
-      },
+    const orderRow = await db.query.order.findFirst({
+      where: and(eq(order.id, body.orderId), eq(order.userId, userRow.id)),
     })
 
-    if (!order) {
+    if (!orderRow) {
       return jsonError('订单不存在', 404)
     }
 
-    if (!user.openid) {
+    if (!userRow.openid) {
       return jsonError('请先使用微信登录后再支付')
     }
 
     const result = await createMergePayment({
-      userId: user.id,
-      openid: user.openid,
+      userId: userRow.id,
+      openid: userRow.openid,
       orderIds: [body.orderId],
     })
 

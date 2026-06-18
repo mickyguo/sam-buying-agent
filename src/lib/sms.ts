@@ -1,4 +1,6 @@
-import { prisma } from '@/lib/db'
+import { and, desc, eq, gt } from 'drizzle-orm'
+import { smsCode, user } from '@/db/schema'
+import { db } from '@/lib/db'
 import { shopUserDefaults } from '@/lib/shop-user'
 
 const CODE_TTL_MINUTES = 5
@@ -33,10 +35,12 @@ function generateCode(): string {
 export async function sendSmsCode(phone: string) {
   const normalizedPhone = normalizePhone(phone)
 
-  const latest = await prisma.smsCode.findFirst({
-    where: { phone: normalizedPhone },
-    orderBy: { createdAt: 'desc' },
-  })
+  const [latest] = await db
+    .select()
+    .from(smsCode)
+    .where(eq(smsCode.phone, normalizedPhone))
+    .orderBy(desc(smsCode.createdAt))
+    .limit(1)
 
   if (latest) {
     const elapsed = Date.now() - latest.createdAt.getTime()
@@ -48,12 +52,10 @@ export async function sendSmsCode(phone: string) {
   const code = generateCode()
   const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000)
 
-  await prisma.smsCode.create({
-    data: {
-      phone: normalizedPhone,
-      code,
-      expiresAt,
-    },
+  await db.insert(smsCode).values({
+    phone: normalizedPhone,
+    code,
+    expiresAt,
   })
 
   if (isSmsDevMode()) {
@@ -77,22 +79,24 @@ export async function verifySmsCode(phone: string, code: string) {
     return normalizedPhone
   }
 
-  const record = await prisma.smsCode.findFirst({
-    where: {
-      phone: normalizedPhone,
-      code: trimmedCode,
-      expiresAt: { gt: new Date() },
-    },
-    orderBy: { createdAt: 'desc' },
-  })
+  const [record] = await db
+    .select()
+    .from(smsCode)
+    .where(
+      and(
+        eq(smsCode.phone, normalizedPhone),
+        eq(smsCode.code, trimmedCode),
+        gt(smsCode.expiresAt, new Date()),
+      ),
+    )
+    .orderBy(desc(smsCode.createdAt))
+    .limit(1)
 
   if (!record) {
     throw new Error('验证码错误或已过期')
   }
 
-  await prisma.smsCode.deleteMany({
-    where: { phone: normalizedPhone },
-  })
+  await db.delete(smsCode).where(eq(smsCode.phone, normalizedPhone))
 
   return normalizedPhone
 }
@@ -101,17 +105,17 @@ export function buildSmsOpenid(phone: string): string {
   return `sms_${phone}`
 }
 
-export function serializeAuthUser(user: {
+export function serializeAuthUser(userRow: {
   id: string
   nickname: string | null
   avatarUrl: string | null
   phone: string | null
 }) {
   return {
-    id: user.id,
-    nickname: user.nickname,
-    avatarUrl: user.avatarUrl,
-    phone: user.phone,
+    id: userRow.id,
+    nickname: userRow.nickname,
+    avatarUrl: userRow.avatarUrl,
+    phone: userRow.phone,
   }
 }
 
@@ -119,29 +123,39 @@ export async function findOrCreateUserByPhone(phone: string) {
   const normalizedPhone = normalizePhone(phone)
   const openid = buildSmsOpenid(normalizedPhone)
 
-  const existingByPhone = await prisma.user.findFirst({
-    where: { phone: normalizedPhone },
-  })
+  const [existingByPhone] = await db
+    .select()
+    .from(user)
+    .where(eq(user.phone, normalizedPhone))
+    .limit(1)
 
   if (existingByPhone) {
     return existingByPhone
   }
 
-  const existingByOpenid = await prisma.user.findUnique({
-    where: { openid },
-  })
+  const [existingByOpenid] = await db
+    .select()
+    .from(user)
+    .where(eq(user.openid, openid))
+    .limit(1)
 
   if (existingByOpenid) {
-    return prisma.user.update({
-      where: { id: existingByOpenid.id },
-      data: { phone: normalizedPhone },
-    })
+    const [updated] = await db
+      .update(user)
+      .set({ phone: normalizedPhone })
+      .where(eq(user.id, existingByOpenid.id))
+      .returning()
+    return updated
   }
 
-  return prisma.user.create({
-    data: shopUserDefaults(openid, {
-      phone: normalizedPhone,
-      nickname: `用户${normalizedPhone.slice(-4)}`,
-    }),
-  })
+  const [created] = await db
+    .insert(user)
+    .values(
+      shopUserDefaults(openid, {
+        phone: normalizedPhone,
+        nickname: `用户${normalizedPhone.slice(-4)}`,
+      }),
+    )
+    .returning()
+  return created
 }

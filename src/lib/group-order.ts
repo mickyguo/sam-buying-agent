@@ -1,11 +1,13 @@
+import { and, eq, inArray, lte } from 'drizzle-orm'
+import { groupOrder, groupParticipation, order, product } from '@/db/schema'
 import {
   GroupStatus,
   OrderStatus,
   OrderType,
   PayStatus,
   ProductStatus,
-} from '@prisma/client'
-import { prisma } from '@/lib/db'
+} from '@/db/enums'
+import { db } from '@/lib/db'
 import {
   calcSplitAmount,
   generateOrderNo,
@@ -89,64 +91,75 @@ export async function createGroupOrder(params: {
   units: number
   checkoutBatchId?: string
 }) {
-  const product = await prisma.product.findUnique({
-    where: { id: params.productId },
-  })
+  const [productRow] = await db
+    .select()
+    .from(product)
+    .where(eq(product.id, params.productId))
+    .limit(1)
 
-  if (!product || product.status !== ProductStatus.ACTIVE) {
+  if (!productRow || productRow.status !== ProductStatus.ACTIVE) {
     throw new Error('商品不存在或已下架')
   }
-  if (!product.splittable || !product.totalUnits) {
+  if (!productRow.splittable || !productRow.totalUnits) {
     throw new Error('该商品不支持拼单')
   }
-  if (params.units <= 0 || params.units > product.totalUnits) {
+  if (params.units <= 0 || params.units > productRow.totalUnits) {
     throw new Error('拼单份数无效')
   }
 
-  const amount = calcSplitAmount(product.price, product.totalUnits, params.units)
+  const amount = calcSplitAmount(
+    productRow.price,
+    productRow.totalUnits,
+    params.units,
+  )
   const orderNo = generateOrderNo()
 
-  const result = await prisma.$transaction(async (tx) => {
-    const groupOrder = await tx.groupOrder.create({
-      data: {
-        productId: product.id,
+  return db.transaction(async (tx) => {
+    const [groupOrderRow] = await tx
+      .insert(groupOrder)
+      .values({
+        productId: productRow.id,
         initiatorId: params.userId,
-        totalUnits: product.totalUnits!,
+        totalUnits: productRow.totalUnits!,
         reservedUnits: params.units,
         expiresAt: getExpireAt(),
-      },
-    })
+      })
+      .returning()
 
-    const order = await tx.order.create({
-      data: {
+    const [orderRow] = await tx
+      .insert(order)
+      .values({
         orderNo,
         userId: params.userId,
         type: OrderType.GROUP,
-        productId: product.id,
-        groupOrderId: groupOrder.id,
+        productId: productRow.id,
+        groupOrderId: groupOrderRow.id,
         units: params.units,
         amount,
         status: OrderStatus.PENDING_PAY,
         wxOutTradeNo: orderNo,
         checkoutBatchId: params.checkoutBatchId,
-      },
-    })
+      })
+      .returning()
 
-    const participation = await tx.groupParticipation.create({
-      data: {
-        groupOrderId: groupOrder.id,
+    const [participation] = await tx
+      .insert(groupParticipation)
+      .values({
+        groupOrderId: groupOrderRow.id,
         userId: params.userId,
         units: params.units,
         amount,
         payStatus: PayStatus.PENDING,
-        orderId: order.id,
-      },
-    })
+        orderId: orderRow.id,
+      })
+      .returning()
 
-    return { groupOrder, order, participation }
+    return {
+      groupOrder: groupOrderRow,
+      order: orderRow,
+      participation,
+    }
   })
-
-  return result
 }
 
 export async function joinGroupOrder(params: {
@@ -155,165 +168,177 @@ export async function joinGroupOrder(params: {
   units: number
   checkoutBatchId?: string
 }) {
-  const amountResult = await prisma.$transaction(async (tx) => {
-    const groupOrder = await tx.groupOrder.findUnique({
-      where: { id: params.groupOrderId },
-      include: { product: true },
+  return db.transaction(async (tx) => {
+    const groupOrderRow = await tx.query.groupOrder.findFirst({
+      where: eq(groupOrder.id, params.groupOrderId),
+      with: { product: true },
     })
 
-    if (!groupOrder) {
+    if (!groupOrderRow) {
       throw new Error('拼单不存在')
     }
-    if (groupOrder.status !== GroupStatus.OPEN) {
+    if (groupOrderRow.status !== GroupStatus.OPEN) {
       throw new Error('拼单已结束')
     }
-    if (groupOrder.expiresAt <= new Date()) {
+    if (groupOrderRow.expiresAt <= new Date()) {
       throw new Error('拼单已过期')
     }
 
-    const remaining = getAvailableUnits(groupOrder)
+    const remaining = getAvailableUnits(groupOrderRow)
     if (params.units <= 0 || params.units > remaining) {
-      throw new Error(`最多还能拼 ${remaining} ${groupOrder.product.unitLabel ?? '份'}`)
+      throw new Error(
+        `最多还能拼 ${remaining} ${groupOrderRow.product.unitLabel ?? '份'}`,
+      )
     }
 
-    const existing = await tx.groupParticipation.findFirst({
-      where: {
-        groupOrderId: groupOrder.id,
-        userId: params.userId,
-        payStatus: { in: [PayStatus.PENDING, PayStatus.PAID] },
-      },
+    const existing = await tx.query.groupParticipation.findFirst({
+      where: and(
+        eq(groupParticipation.groupOrderId, groupOrderRow.id),
+        eq(groupParticipation.userId, params.userId),
+        inArray(groupParticipation.payStatus, [PayStatus.PENDING, PayStatus.PAID]),
+      ),
     })
     if (existing) {
       throw new Error('你已参与该拼单')
     }
 
     const amount = calcSplitAmount(
-      groupOrder.product.price,
-      groupOrder.totalUnits,
+      groupOrderRow.product.price,
+      groupOrderRow.totalUnits,
       params.units,
     )
     const orderNo = generateOrderNo()
 
-    const order = await tx.order.create({
-      data: {
+    const [orderRow] = await tx
+      .insert(order)
+      .values({
         orderNo,
         userId: params.userId,
         type: OrderType.GROUP,
-        productId: groupOrder.productId,
-        groupOrderId: groupOrder.id,
+        productId: groupOrderRow.productId,
+        groupOrderId: groupOrderRow.id,
         units: params.units,
         amount,
         status: OrderStatus.PENDING_PAY,
         wxOutTradeNo: orderNo,
         checkoutBatchId: params.checkoutBatchId,
-      },
-    })
+      })
+      .returning()
 
-    const participation = await tx.groupParticipation.create({
-      data: {
-        groupOrderId: groupOrder.id,
+    const [participation] = await tx
+      .insert(groupParticipation)
+      .values({
+        groupOrderId: groupOrderRow.id,
         userId: params.userId,
         units: params.units,
         amount,
         payStatus: PayStatus.PENDING,
-        orderId: order.id,
-      },
-    })
+        orderId: orderRow.id,
+      })
+      .returning()
 
-    await tx.groupOrder.update({
-      where: { id: groupOrder.id },
-      data: { reservedUnits: groupOrder.reservedUnits + params.units },
-    })
+    await tx
+      .update(groupOrder)
+      .set({ reservedUnits: groupOrderRow.reservedUnits + params.units })
+      .where(eq(groupOrder.id, groupOrderRow.id))
 
-    return { groupOrder, order, participation, amount }
+    return {
+      groupOrder: groupOrderRow,
+      order: orderRow,
+      participation,
+      amount,
+    }
   })
-
-  return amountResult
 }
 
 export async function markOrderPaid(orderId: string, wxPayTxnId?: string) {
-  return prisma.$transaction(async (tx) => {
-    const order = await tx.order.findUnique({
-      where: { id: orderId },
-      include: {
+  return db.transaction(async (tx) => {
+    const orderRow = await tx.query.order.findFirst({
+      where: eq(order.id, orderId),
+      with: {
         product: true,
         user: true,
         participation: {
-          include: {
+          with: {
             groupOrder: true,
           },
         },
       },
     })
 
-    if (!order) {
+    if (!orderRow) {
       throw new Error('订单不存在')
     }
-    if (order.status !== OrderStatus.PENDING_PAY) {
-      return order
+    if (orderRow.status !== OrderStatus.PENDING_PAY) {
+      return orderRow
     }
 
-    const updatedOrder = await tx.order.update({
-      where: { id: order.id },
-      data: {
+    const [updatedOrder] = await tx
+      .update(order)
+      .set({
         status: OrderStatus.PAID,
         wxPayTxnId,
         paidAt: new Date(),
-      },
-    })
+      })
+      .where(eq(order.id, orderRow.id))
+      .returning()
 
-    if (order.type === OrderType.DIRECT) {
+    if (orderRow.type === OrderType.DIRECT) {
       return updatedOrder
     }
 
-    const participation = order.participation
+    const participation = orderRow.participation
     if (!participation) {
       return updatedOrder
     }
 
-    await tx.groupParticipation.update({
-      where: { id: participation.id },
-      data: { payStatus: PayStatus.PAID },
-    })
+    await tx
+      .update(groupParticipation)
+      .set({ payStatus: PayStatus.PAID })
+      .where(eq(groupParticipation.id, participation.id))
 
-    const groupOrder = await tx.groupOrder.findUnique({
-      where: { id: participation.groupOrderId },
-    })
-    if (!groupOrder) {
+    const [groupOrderRow] = await tx
+      .select()
+      .from(groupOrder)
+      .where(eq(groupOrder.id, participation.groupOrderId))
+      .limit(1)
+    if (!groupOrderRow) {
       return updatedOrder
     }
 
     const reservedUnits = Math.max(
       0,
-      groupOrder.reservedUnits - participation.units,
+      groupOrderRow.reservedUnits - participation.units,
     )
-    const filledUnits = groupOrder.filledUnits + participation.units
-    const isFilled = filledUnits >= groupOrder.totalUnits
+    const filledUnits = groupOrderRow.filledUnits + participation.units
+    const isFilled = filledUnits >= groupOrderRow.totalUnits
 
-    await tx.groupOrder.update({
-      where: { id: groupOrder.id },
-      data: {
+    await tx
+      .update(groupOrder)
+      .set({
         reservedUnits,
         filledUnits,
         status: isFilled ? GroupStatus.FILLED : GroupStatus.OPEN,
-      },
-    })
+      })
+      .where(eq(groupOrder.id, groupOrderRow.id))
 
     if (isFilled) {
-      await tx.order.updateMany({
-        where: {
-          groupOrderId: groupOrder.id,
-          status: OrderStatus.PAID,
-        },
-        data: { status: OrderStatus.PURCHASING },
-      })
+      await tx
+        .update(order)
+        .set({ status: OrderStatus.PURCHASING })
+        .where(
+          and(
+            eq(order.groupOrderId, groupOrderRow.id),
+            eq(order.status, OrderStatus.PAID),
+          ),
+        )
 
-      const participants = await tx.groupParticipation.findMany({
-        where: {
-          groupOrderId: groupOrder.id,
-          payStatus: PayStatus.PAID,
-        },
-        include: { user: true },
+      const participants = await tx.query.groupParticipation.findMany({
+        where: and(
+          eq(groupParticipation.groupOrderId, groupOrderRow.id),
+          eq(groupParticipation.payStatus, PayStatus.PAID),
+        ),
+        with: { user: true },
       })
 
       await Promise.all(
@@ -322,14 +347,14 @@ export async function markOrderPaid(orderId: string, wxPayTxnId?: string) {
           .map((item) =>
             sendSubscribeMessage({
               openid: item.user.openid!,
-            templateId: 'GROUP_FILLED',
-            page: `/shop/groups/${groupOrder.id}`,
-            data: {
-              thing1: { value: order.product.name.slice(0, 20) },
-              phrase2: { value: '拼单成功' },
-            },
-          }),
-        ),
+              templateId: 'GROUP_FILLED',
+              page: `/shop/groups/${groupOrderRow.id}`,
+              data: {
+                thing1: { value: orderRow.product.name.slice(0, 20) },
+                phrase2: { value: '拼单成功' },
+              },
+            }),
+          ),
       )
     }
 
@@ -341,44 +366,50 @@ export async function cancelExpiredPendingOrders() {
   const timeoutMinutes = getOrderPayTimeoutMinutes()
   const cutoff = new Date(Date.now() - timeoutMinutes * 60 * 1000)
 
-  const pendingOrders = await prisma.order.findMany({
-    where: {
-      status: OrderStatus.PENDING_PAY,
-      createdAt: { lte: cutoff },
-    },
-    include: {
+  const pendingOrders = await db.query.order.findMany({
+    where: and(
+      eq(order.status, OrderStatus.PENDING_PAY),
+      lte(order.createdAt, cutoff),
+    ),
+    with: {
       participation: true,
     },
   })
 
   let cancelledCount = 0
 
-  for (const order of pendingOrders) {
-    await prisma.$transaction(async (tx) => {
-      const current = await tx.order.findUnique({ where: { id: order.id } })
+  for (const orderRow of pendingOrders) {
+    await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(order)
+        .where(eq(order.id, orderRow.id))
+        .limit(1)
       if (!current || current.status !== OrderStatus.PENDING_PAY) {
         return
       }
 
-      await tx.order.update({
-        where: { id: order.id },
-        data: { status: OrderStatus.CANCELLED },
-      })
+      await tx
+        .update(order)
+        .set({ status: OrderStatus.CANCELLED })
+        .where(eq(order.id, orderRow.id))
 
-      if (order.type === OrderType.GROUP && order.participation) {
-        const groupOrder = await tx.groupOrder.findUnique({
-          where: { id: order.participation.groupOrderId },
-        })
-        if (groupOrder) {
-          await tx.groupOrder.update({
-            where: { id: groupOrder.id },
-            data: {
+      if (orderRow.type === OrderType.GROUP && orderRow.participation) {
+        const [groupOrderRow] = await tx
+          .select()
+          .from(groupOrder)
+          .where(eq(groupOrder.id, orderRow.participation.groupOrderId))
+          .limit(1)
+        if (groupOrderRow) {
+          await tx
+            .update(groupOrder)
+            .set({
               reservedUnits: Math.max(
                 0,
-                groupOrder.reservedUnits - order.participation.units,
+                groupOrderRow.reservedUnits - orderRow.participation.units,
               ),
-            },
-          })
+            })
+            .where(eq(groupOrder.id, groupOrderRow.id))
         }
       }
     })
@@ -393,26 +424,29 @@ export async function expireOpenGroupOrders() {
   await cancelExpiredPendingOrders()
 
   const now = new Date()
-  const expiredGroups = await prisma.groupOrder.findMany({
-    where: {
-      status: GroupStatus.OPEN,
-      expiresAt: { lte: now },
-    },
-    include: {
+  const expiredGroups = await db.query.groupOrder.findMany({
+    where: and(
+      eq(groupOrder.status, GroupStatus.OPEN),
+      lte(groupOrder.expiresAt, now),
+    ),
+    with: {
       participations: {
-        where: { payStatus: { in: [PayStatus.PAID, PayStatus.PENDING] } },
-        include: { order: true, user: true },
+        where: inArray(groupParticipation.payStatus, [
+          PayStatus.PAID,
+          PayStatus.PENDING,
+        ]),
+        with: { order: true, user: true },
       },
       product: true,
     },
   })
 
   for (const group of expiredGroups) {
-    await prisma.$transaction(async (tx) => {
-      await tx.groupOrder.update({
-        where: { id: group.id },
-        data: { status: GroupStatus.EXPIRED, reservedUnits: 0 },
-      })
+    await db.transaction(async (tx) => {
+      await tx
+        .update(groupOrder)
+        .set({ status: GroupStatus.EXPIRED, reservedUnits: 0 })
+        .where(eq(groupOrder.id, group.id))
 
       for (const participation of group.participations) {
         if (!participation.order) {
@@ -420,22 +454,22 @@ export async function expireOpenGroupOrders() {
         }
 
         if (participation.payStatus === PayStatus.PENDING) {
-          await tx.order.update({
-            where: { id: participation.order.id },
-            data: { status: OrderStatus.CANCELLED },
-          })
+          await tx
+            .update(order)
+            .set({ status: OrderStatus.CANCELLED })
+            .where(eq(order.id, participation.order.id))
           continue
         }
 
-        await tx.groupParticipation.update({
-          where: { id: participation.id },
-          data: { payStatus: PayStatus.REFUNDED },
-        })
+        await tx
+          .update(groupParticipation)
+          .set({ payStatus: PayStatus.REFUNDED })
+          .where(eq(groupParticipation.id, participation.id))
 
-        await tx.order.update({
-          where: { id: participation.order.id },
-          data: { status: OrderStatus.REFUNDED },
-        })
+        await tx
+          .update(order)
+          .set({ status: OrderStatus.REFUNDED })
+          .where(eq(order.id, participation.order.id))
       }
     })
 

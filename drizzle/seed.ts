@@ -1,5 +1,7 @@
-import { ProductStatus } from '@prisma/client'
-import { prisma } from '@/lib/db'
+import { and, count, eq, inArray, notInArray, or } from 'drizzle-orm'
+import { product } from '@/db/schema'
+import { ProductStatus } from '@/db/enums'
+import { db } from '@/lib/db'
 
 /** 山姆会员店常见热销品（参考门店价，入库后可在后台同步调整） */
 const products = [
@@ -116,58 +118,57 @@ const products = [
 async function main() {
   const externalIds = products.map((item) => item.externalId)
 
-  await prisma.product.updateMany({
-    where: {
-      externalId: { notIn: externalIds },
-      status: ProductStatus.ACTIVE,
-    },
-    data: { status: ProductStatus.INACTIVE },
-  })
+  await db
+    .update(product)
+    .set({ status: ProductStatus.INACTIVE })
+    .where(
+      and(
+        notInArray(product.externalId, externalIds),
+        eq(product.status, ProductStatus.ACTIVE),
+      ),
+    )
 
-  for (const product of products) {
-    const existing = await prisma.product.findFirst({
-      where: {
-        OR: [
-          { externalId: product.externalId },
-          { name: product.name },
-        ],
-      },
+  for (const item of products) {
+    const existing = await db.query.product.findFirst({
+      where: or(
+        eq(product.externalId, item.externalId),
+        eq(product.name, item.name),
+      ),
     })
 
     if (existing) {
-      await prisma.product.update({
-        where: { id: existing.id },
-        data: {
-          ...product,
+      await db
+        .update(product)
+        .set({
+          ...item,
           lastSyncedAt: new Date(),
-        },
-      })
+        })
+        .where(eq(product.id, existing.id))
       continue
     }
 
-    await prisma.product.create({
-      data: {
-        ...product,
-        lastSyncedAt: new Date(),
-      },
+    await db.insert(product).values({
+      ...item,
+      lastSyncedAt: new Date(),
     })
   }
 
-  const count = await prisma.product.count({
-    where: {
-      status: ProductStatus.ACTIVE,
-      externalId: { in: externalIds },
-    },
-  })
-  console.info(`[seed] 已初始化 ${count} 个山姆热销商品（共 ${products.length} 条种子数据）`)
+  const [countRow] = await db
+    .select({ count: count() })
+    .from(product)
+    .where(
+      and(
+        eq(product.status, ProductStatus.ACTIVE),
+        inArray(product.externalId, externalIds),
+      ),
+    )
+
+  console.info(
+    `[seed] 已初始化 ${countRow.count} 个山姆热销商品（共 ${products.length} 条种子数据）`,
+  )
 }
 
-main()
-  .then(async () => {
-    await prisma.$disconnect()
-  })
-  .catch(async (error) => {
-    console.error(error)
-    await prisma.$disconnect()
-    process.exit(1)
-  })
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})

@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken'
 import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/db'
+import { eq } from 'drizzle-orm'
+import { user } from '@/db/schema'
+import { db } from '@/lib/db'
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret'
 
@@ -33,16 +35,18 @@ export async function getAuthUser(request: NextRequest) {
 
   try {
     const payload = verifyToken(token)
-    return prisma.user.findUnique({ where: { id: payload.userId } })
+    return db.query.user.findFirst({
+      where: eq(user.id, payload.userId),
+    })
   } catch {
     return null
   }
 }
 
 export async function requireAuthUser(request: NextRequest) {
-  const user = await getAuthUser(request)
-  if (!user) {
+  const userRow = await getAuthUser(request)
+  if (!userRow) {
     throw new Error('UNAUTHORIZED')
   }
-  return user
+  return userRow
 }

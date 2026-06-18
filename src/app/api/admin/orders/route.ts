@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
-import { OrderStatus } from '@prisma/client'
-import { prisma } from '@/lib/db'
+import { and, desc, eq, inArray } from 'drizzle-orm'
+import { groupOrder, order } from '@/db/schema'
+import { OrderStatus } from '@/db/enums'
+import { db } from '@/lib/db'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'
 
 export async function GET(request: NextRequest) {
@@ -10,27 +12,27 @@ export async function GET(request: NextRequest) {
       return jsonError('管理员密码错误', 403)
     }
 
-    const orders = await prisma.order.findMany({
-      include: {
+    const orders = await db.query.order.findMany({
+      with: {
         product: true,
         user: true,
       },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
+      orderBy: desc(order.createdAt),
+      limit: 100,
     })
 
     return jsonOk(
-      orders.map((order) => ({
-        id: order.id,
-        orderNo: order.orderNo,
-        type: order.type,
-        status: order.status,
-        amount: order.amount,
-        units: order.units,
-        groupOrderId: order.groupOrderId,
-        createdAt: order.createdAt.toISOString(),
-        productName: order.product.name,
-        userNickname: order.user.nickname,
+      orders.map((orderRow) => ({
+        id: orderRow.id,
+        orderNo: orderRow.orderNo,
+        type: orderRow.type,
+        status: orderRow.status,
+        amount: orderRow.amount,
+        units: orderRow.units,
+        groupOrderId: orderRow.groupOrderId,
+        createdAt: orderRow.createdAt.toISOString(),
+        productName: orderRow.product.name,
+        userNickname: orderRow.user.nickname,
       })),
     )
   } catch (error) {
@@ -53,30 +55,34 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (body.groupOrderId && body.groupStatus) {
-      await prisma.groupOrder.update({
-        where: { id: body.groupOrderId },
-        data: { status: body.groupStatus },
-      })
+      await db
+        .update(groupOrder)
+        .set({ status: body.groupStatus })
+        .where(eq(groupOrder.id, body.groupOrderId))
 
       const nextStatus =
         body.groupStatus === 'COMPLETED'
           ? OrderStatus.COMPLETED
           : OrderStatus.PURCHASING
 
-      await prisma.order.updateMany({
-        where: {
-          groupOrderId: body.groupOrderId,
-          status: {
-            in: [OrderStatus.PAID, OrderStatus.PURCHASING, OrderStatus.DELIVERING],
-          },
-        },
-        data: {
+      await db
+        .update(order)
+        .set({
           status:
             body.groupStatus === 'COMPLETED'
               ? OrderStatus.COMPLETED
               : nextStatus,
-        },
-      })
+        })
+        .where(
+          and(
+            eq(order.groupOrderId, body.groupOrderId),
+            inArray(order.status, [
+              OrderStatus.PAID,
+              OrderStatus.PURCHASING,
+              OrderStatus.DELIVERING,
+            ]),
+          ),
+        )
 
       return jsonOk({ groupOrderId: body.groupOrderId, status: body.groupStatus })
     }
@@ -85,12 +91,13 @@ export async function PATCH(request: NextRequest) {
       return jsonError('缺少参数')
     }
 
-    const order = await prisma.order.update({
-      where: { id: body.orderId },
-      data: { status: body.status },
-    })
+    const [orderRow] = await db
+      .update(order)
+      .set({ status: body.status })
+      .where(eq(order.id, body.orderId))
+      .returning()
 
-    return jsonOk({ id: order.id, status: order.status })
+    return jsonOk({ id: orderRow.id, status: orderRow.status })
   } catch (error) {
     return handleApiError(error)
   }

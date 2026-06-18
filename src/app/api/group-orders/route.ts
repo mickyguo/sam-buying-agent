@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server'
-import { GroupStatus } from '@prisma/client'
+import { and, desc, eq } from 'drizzle-orm'
+import { groupOrder } from '@/db/schema'
+import { GroupStatus } from '@/db/enums'
 import { requireAuthUser } from '@/lib/shop-auth'
-import { prisma } from '@/lib/db'
+import { db } from '@/lib/db'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'
 import {
   createGroupOrder,
@@ -14,18 +16,18 @@ export async function GET(request: NextRequest) {
     const productId = searchParams.get('productId')
     const status = searchParams.get('status') as GroupStatus | null
 
-    const groups = await prisma.groupOrder.findMany({
-      where: {
-        productId: productId ?? undefined,
-        status: status ?? GroupStatus.OPEN,
-      },
-      include: {
+    const groups = await db.query.groupOrder.findMany({
+      where: and(
+        productId ? eq(groupOrder.productId, productId) : undefined,
+        eq(groupOrder.status, status ?? GroupStatus.OPEN),
+      ),
+      with: {
         product: true,
         participations: {
-          include: { user: true },
+          with: { user: true },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: desc(groupOrder.createdAt),
     })
 
     return jsonOk(groups.map(serializeGroupOrder))
@@ -36,7 +38,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuthUser(request)
+    const userRow = await requireAuthUser(request)
     const body = (await request.json()) as {
       productId?: string
       units?: number
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await createGroupOrder({
-      userId: user.id,
+      userId: userRow.id,
       productId: body.productId,
       units: body.units,
       checkoutBatchId: body.checkoutBatchId,

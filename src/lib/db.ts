@@ -1,46 +1,25 @@
-import { PrismaPg } from '@prisma/adapter-pg'
-import { PrismaClient } from '@prisma/client'
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { Pool } from 'pg'
+import { schema } from '@/db/schema'
 
-const PRISMA_CACHE_KEY = 'v6-driver-adapter'
-
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
-  prismaCacheKey: string | undefined
+const globalForDb = globalThis as unknown as {
+  pool: Pool | undefined
 }
 
-function createPrismaClient() {
+function createPool() {
   const connectionString = process.env.DATABASE_URL
   if (!connectionString) {
     throw new Error('DATABASE_URL is not configured')
   }
 
-  const adapter = new PrismaPg({ connectionString })
-  return new PrismaClient({
-    adapter,
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  })
+  return new Pool({ connectionString })
 }
 
-function getPrismaClient(): PrismaClient {
-  const cached = globalForPrisma.prisma
-  if (cached && globalForPrisma.prismaCacheKey === PRISMA_CACHE_KEY) {
-    return cached
+function getPool(): Pool {
+  if (!globalForDb.pool) {
+    globalForDb.pool = createPool()
   }
-
-  if (cached) {
-    void cached.$disconnect()
-  }
-
-  const client = createPrismaClient()
-  globalForPrisma.prisma = client
-  globalForPrisma.prismaCacheKey = PRISMA_CACHE_KEY
-  return client
+  return globalForDb.pool
 }
 
-export const prisma = new Proxy({} as PrismaClient, {
-  get(_target, prop, receiver) {
-    const client = getPrismaClient()
-    const value = Reflect.get(client, prop, receiver)
-    return typeof value === 'function' ? value.bind(client) : value
-  },
-})
+export const db = drizzle(getPool(), { schema })

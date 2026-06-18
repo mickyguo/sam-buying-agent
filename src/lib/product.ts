@@ -1,5 +1,7 @@
-import { ProductStatus } from '@prisma/client'
-import { prisma } from '@/lib/db'
+import { count, eq } from 'drizzle-orm'
+import { groupOrder, order, product } from '@/db/schema'
+import { ProductStatus, type ProductStatus as ProductStatusType } from '@/db/enums'
+import { db } from '@/lib/db'
 
 export interface ProductInput {
   name: string
@@ -9,12 +11,12 @@ export interface ProductInput {
   totalUnits?: number | null
   unitLabel?: string | null
   description?: string | null
-  status?: ProductStatus
+  status?: ProductStatusType
   sourceUrl?: string | null
   externalId?: string | null
 }
 
-export function serializeProduct(product: {
+export function serializeProduct(productRow: {
   id: string
   name: string
   imageUrl: string
@@ -23,58 +25,64 @@ export function serializeProduct(product: {
   totalUnits: number | null
   unitLabel: string | null
   description: string | null
-  status: ProductStatus
+  status: ProductStatusType
   sourceUrl?: string | null
   externalId?: string | null
   lastSyncedAt?: Date | null
 }) {
   return {
-    id: product.id,
-    name: product.name,
-    imageUrl: product.imageUrl,
-    price: product.price,
-    priceYuan: (product.price / 100).toFixed(2),
-    splittable: product.splittable,
-    totalUnits: product.totalUnits,
-    unitLabel: product.unitLabel,
-    description: product.description,
-    status: product.status,
-    sourceUrl: product.sourceUrl ?? null,
-    externalId: product.externalId ?? null,
-    lastSyncedAt: product.lastSyncedAt?.toISOString() ?? null,
+    id: productRow.id,
+    name: productRow.name,
+    imageUrl: productRow.imageUrl,
+    price: productRow.price,
+    priceYuan: (productRow.price / 100).toFixed(2),
+    splittable: productRow.splittable,
+    totalUnits: productRow.totalUnits,
+    unitLabel: productRow.unitLabel,
+    description: productRow.description,
+    status: productRow.status,
+    sourceUrl: productRow.sourceUrl ?? null,
+    externalId: productRow.externalId ?? null,
+    lastSyncedAt: productRow.lastSyncedAt?.toISOString() ?? null,
     unitPrice:
-      product.splittable && product.totalUnits
-        ? Math.round(product.price / product.totalUnits)
-        : product.price,
+      productRow.splittable && productRow.totalUnits
+        ? Math.round(productRow.price / productRow.totalUnits)
+        : productRow.price,
   }
 }
 
 export async function deleteProduct(id: string) {
-  const product = await prisma.product.findUnique({
-    where: { id },
-    include: {
-      _count: {
-        select: { orders: true, groupOrders: true },
-      },
-    },
-  })
+  const [productRow] = await db
+    .select()
+    .from(product)
+    .where(eq(product.id, id))
+    .limit(1)
 
-  if (!product) {
+  if (!productRow) {
     throw new Error('NOT_FOUND')
   }
 
+  const [orderCountRow] = await db
+    .select({ count: count() })
+    .from(order)
+    .where(eq(order.productId, id))
+  const [groupOrderCountRow] = await db
+    .select({ count: count() })
+    .from(groupOrder)
+    .where(eq(groupOrder.productId, id))
+
   const hasReferences =
-    product._count.orders > 0 || product._count.groupOrders > 0
+    (orderCountRow?.count ?? 0) > 0 || (groupOrderCountRow?.count ?? 0) > 0
 
   if (hasReferences) {
-    await prisma.product.update({
-      where: { id },
-      data: { status: ProductStatus.INACTIVE },
-    })
+    await db
+      .update(product)
+      .set({ status: ProductStatus.INACTIVE })
+      .where(eq(product.id, id))
     return { id, mode: 'deactivated' as const }
   }
 
-  await prisma.product.delete({ where: { id } })
+  await db.delete(product).where(eq(product.id, id))
   return { id, mode: 'deleted' as const }
 }
 

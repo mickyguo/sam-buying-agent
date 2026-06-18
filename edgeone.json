@@ -7,8 +7,6 @@
     "mainlandRegions": ["ap-guangzhou"],
     "nodejs": {
       "externalNodeModules": [
-        "@prisma/client",
-        "@prisma/adapter-pg",
         "pg"
       ],
       "maxDuration": 60

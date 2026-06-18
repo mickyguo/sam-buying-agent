@@ -99,7 +99,8 @@ src/app/api/       # 后端 API
 src/app/admin/     # 管理后台
 src/lib/shop/      # H5 客户端工具
 src/lib/sams/      # 山姆商品导入
-prisma/            # Prisma 数据模型与迁移
+drizzle/             # Drizzle 种子数据
+src/db/              # Drizzle schema 与枚举
 ```
 
 ## 拼单规则
