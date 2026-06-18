@@ -3,6 +3,17 @@
   "installCommand": "pnpm install",
   "outputDirectory": ".next",
   "nodeVersion": "22.11.0",
+  "headers": [
+    {
+      "source": "/api/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate"
+        }
+      ]
+    }
+  ],
   "cloudFunctions": {
     "mainlandRegions": ["ap-guangzhou"],
     "nodejs": {

@@ -1,13 +1,13 @@
 import { resolveApiUrl } from '@/lib/shop/api-url'
 import { getShopToken } from '@/lib/shop/storage'
 
-function parseJsonBody<T>(text: string): T {
+function parseJsonBody<T>(text: string, url: string, status: number): T {
   const trimmed = text.trim()
   if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
     throw new Error(
       trimmed.startsWith('<!')
-        ? '接口返回了 HTML 页面，请确认 EdgeOne 已正确部署 API 路由'
-        : `接口返回非 JSON：${trimmed.slice(0, 120)}`,
+        ? `接口返回了 HTML 页面（${status} ${url}），请确认 EdgeOne 以 Next.js 全栈模式部署且输出目录为 .next`
+        : `接口返回非 JSON（${status} ${url}）：${trimmed.slice(0, 120)}`,
     )
   }
 
@@ -39,7 +39,10 @@ export async function shopFetch<T>(
     requestHeaders.set('Authorization', `Bearer ${token}`)
   }
 
-  const response = await fetch(resolveApiUrl(path), {
+  const url = resolveApiUrl(path)
+  requestHeaders.set('Accept', 'application/json')
+
+  const response = await fetch(url, {
     ...rest,
     headers: requestHeaders,
     cache: 'no-store',
@@ -49,7 +52,7 @@ export async function shopFetch<T>(
   let result: ApiResult<T>
 
   try {
-    result = parseJsonBody<ApiResult<T>>(text)
+    result = parseJsonBody<ApiResult<T>>(text, url, response.status)
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(
