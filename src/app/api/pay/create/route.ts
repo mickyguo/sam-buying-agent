@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'
 import { confirmMergePayment, createMergePayment } from '@/lib/merge-pay'
 import { isDevPaymentMode } from '@/lib/wxpay'
+import { getRequestOrigin } from '@/lib/request-origin'
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,10 +29,12 @@ export async function POST(request: NextRequest) {
       return jsonError('请先使用微信登录后再支付')
     }
 
+    const notifyUrl = `${getRequestOrigin(request)}/api/pay/notify`
     const result = await createMergePayment({
       userId: userRow.id,
       openid: userRow.openid,
       orderIds: [body.orderId],
+      notifyUrl: isDevPaymentMode() ? undefined : notifyUrl,
     })
 
     return jsonOk({

@@ -1,3 +1,6 @@
+import type { NextRequest } from 'next/server'
+import { getRequestOrigin } from '@/lib/request-origin'
+
 interface Code2SessionResponse {
   openid?: string
   session_key?: string
@@ -93,8 +96,8 @@ export function getWechatOAuthUrl(redirectUri: string, state: string) {
   return `${url.toString()}#wechat_redirect`
 }
 
-export function getAppBaseUrl() {
-  return process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000'
+export function getAppBaseUrl(request?: NextRequest | Request) {
+  return getRequestOrigin(request)
 }
 
 export async function sendSubscribeMessage(params: {

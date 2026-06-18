@@ -6,13 +6,15 @@ import { shopUserDefaults } from '@/lib/shop-user'
 import { getAppBaseUrl, oauth2AccessToken } from '@/lib/wechat'
 
 export async function GET(request: NextRequest) {
+  const baseUrl = getAppBaseUrl(request)
+
   try {
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
     const redirect = searchParams.get('state') ?? '/shop/profile'
 
     if (!code) {
-      return NextResponse.redirect(`${getAppBaseUrl()}${redirect}?error=missing_code`)
+      return NextResponse.redirect(`${baseUrl}${redirect}?error=missing_code`)
     }
 
     const session = await oauth2AccessToken(code)
@@ -36,12 +38,12 @@ export async function GET(request: NextRequest) {
       }),
     )
 
-    const target = new URL(redirect, getAppBaseUrl())
+    const target = new URL(redirect, baseUrl)
     target.searchParams.set('token', token)
     target.searchParams.set('user', userPayload)
 
     return NextResponse.redirect(target.toString())
   } catch {
-    return NextResponse.redirect(`${getAppBaseUrl()}/shop/profile?error=oauth_failed`)
+    return NextResponse.redirect(`${baseUrl}/shop/profile?error=oauth_failed`)
   }
 }

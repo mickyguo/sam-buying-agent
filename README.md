@@ -63,7 +63,7 @@ pnpm dev
 | `DATABASE_URL`                        | PostgreSQL 连接字符串        |
 | `JWT_SECRET`                          | JWT 密钥                     |
 | `WECHAT_APP_ID` / `WECHAT_APP_SECRET` | 微信公众号 / 网页授权        |
-| `NEXT_PUBLIC_API_BASE_URL`            | 站点公开 URL（OAuth 回调用） |
+| `NEXT_PUBLIC_API_BASE_URL`            | 可选；本地开发默认 `http://localhost:3000`。线上 H5 自动用当前域名，可不配 |
 | `ADMIN_PASSWORD`                      | 管理后台密码                 |
 | `WECHAT_MCH_*`                        | 微信支付商户配置             |
 | `PICKUP_LOCATION`                     | 自提点地址与取货时间         |

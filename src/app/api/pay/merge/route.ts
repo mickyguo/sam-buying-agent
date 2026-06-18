@@ -6,6 +6,7 @@ import {
   createMergePayment,
 } from '@/lib/merge-pay'
 import { isDevPaymentMode } from '@/lib/wxpay'
+import { getRequestOrigin } from '@/lib/request-origin'
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,10 +21,12 @@ export async function POST(request: NextRequest) {
       return jsonError('请先使用微信登录后再支付')
     }
 
+    const notifyUrl = `${getRequestOrigin(request)}/api/pay/notify`
     const result = await createMergePayment({
       userId: user.id,
       openid: user.openid,
       orderIds: body.orderIds,
+      notifyUrl: isDevPaymentMode() ? undefined : notifyUrl,
     })
 
     return jsonOk(result)

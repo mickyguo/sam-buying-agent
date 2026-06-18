@@ -17,6 +17,7 @@ export async function createMergePayment(params: {
   userId: string
   openid: string
   orderIds: string[]
+  notifyUrl?: string
 }) {
   const uniqueOrderIds = [...new Set(params.orderIds)]
   if (uniqueOrderIds.length === 0) {
@@ -51,6 +52,7 @@ export async function createMergePayment(params: {
       outTradeNo: orderRow.wxOutTradeNo ?? orderRow.orderNo,
       amount: orderRow.amount,
       openid: params.openid,
+      notifyUrl: params.notifyUrl,
     })
 
     return {
@@ -81,6 +83,7 @@ export async function createMergePayment(params: {
     outTradeNo,
     amount: totalAmount,
     openid: params.openid,
+    notifyUrl: params.notifyUrl,
   })
 
   return {

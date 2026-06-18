@@ -14,6 +14,7 @@ interface CreatePaymentInput {
   outTradeNo: string
   amount: number
   openid: string
+  notifyUrl?: string
 }
 
 function isWxPayConfigured() {
@@ -61,8 +62,12 @@ export async function createJsapiPayment(
   }
 
   const notifyUrl =
+    input.notifyUrl ??
     process.env.WECHAT_NOTIFY_URL ??
-    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/pay/notify`
+    process.env.WECHAT_MCH_NOTIFY_URL
+  if (!notifyUrl) {
+    throw new Error('WECHAT_NOTIFY_URL is not configured')
+  }
 
   const payload = {
     appid: process.env.WECHAT_APP_ID,
