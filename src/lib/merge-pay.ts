@@ -1,4 +1,4 @@
-import { OrderStatus, ProductStatus } from '@/generated/prisma/client'
+import { OrderStatus, ProductStatus } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { markOrderPaid } from '@/lib/group-order'
 import { generateOrderNo } from '@/lib/utils'

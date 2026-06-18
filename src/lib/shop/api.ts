@@ -1,4 +1,18 @@
+import { resolveApiUrl } from '@/lib/shop/api-url'
 import { getShopToken } from '@/lib/shop/storage'
+
+function parseJsonBody<T>(text: string): T {
+  const trimmed = text.trim()
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    throw new Error(
+      trimmed.startsWith('<!')
+        ? '接口返回了 HTML 页面，请确认 EdgeOne 已正确部署 API 路由'
+        : `接口返回非 JSON：${trimmed.slice(0, 120)}`,
+    )
+  }
+
+  return JSON.parse(trimmed) as T
+}
 
 interface ApiResult<T> {
   success: boolean
@@ -7,7 +21,7 @@ interface ApiResult<T> {
 }
 
 export async function shopFetch<T>(
-  url: string,
+  path: string,
   options: RequestInit & { auth?: boolean } = {},
 ): Promise<T> {
   const { auth = true, headers, ...rest } = options
@@ -25,22 +39,26 @@ export async function shopFetch<T>(
     requestHeaders.set('Authorization', `Bearer ${token}`)
   }
 
-  const response = await fetch(url, {
+  const response = await fetch(resolveApiUrl(path), {
     ...rest,
     headers: requestHeaders,
+    cache: 'no-store',
   })
 
-  const contentType = response.headers.get('content-type') ?? ''
-  if (!contentType.includes('application/json')) {
-    const text = await response.text()
-    throw new Error(
-      response.ok
-        ? '接口返回格式异常'
-        : `服务异常 (${response.status}): ${text.slice(0, 120)}`,
-    )
+  const text = await response.text()
+  let result: ApiResult<T>
+
+  try {
+    result = parseJsonBody<ApiResult<T>>(text)
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        response.ok ? error.message : `服务异常 (${response.status}): ${error.message}`,
+      )
+    }
+    throw error
   }
 
-  const result = (await response.json()) as ApiResult<T>
   if (!response.ok || !result.success || result.data === undefined) {
     throw new Error(result.message ?? '请求失败')
   }

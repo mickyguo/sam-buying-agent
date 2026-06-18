@@ -1,3 +1,5 @@
+import { resolveApiUrl } from '@/lib/shop/api-url'
+
 export type ProductAvailability = 'available' | 'inactive' | 'missing'
 
 export function getProductAvailabilityLabel(
@@ -22,8 +24,14 @@ export async function fetchProductAvailability(
   productId: string,
 ): Promise<ProductAvailability> {
   try {
-    const response = await fetch(`/api/products/${productId}`)
-    const result = (await response.json()) as {
+    const response = await fetch(resolveApiUrl(`/api/products/${productId}`), {
+      cache: 'no-store',
+    })
+    const text = await response.text()
+    if (!text.trim().startsWith('{')) {
+      return 'missing'
+    }
+    const result = JSON.parse(text) as {
       success: boolean
       data?: { status: string }
     }

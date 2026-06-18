@@ -4,7 +4,7 @@ import {
   OrderType,
   PayStatus,
   ProductStatus,
-} from '@/generated/prisma/client'
+} from '@prisma/client'
 import { prisma } from '@/lib/db'
 import {
   calcSplitAmount,

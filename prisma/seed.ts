@@ -1,4 +1,4 @@
-import { ProductStatus } from '@/generated/prisma/client'
+import { ProductStatus } from '@prisma/client'
 import { prisma } from '@/lib/db'
 
 /** 山姆会员店常见热销品（参考门店价，入库后可在后台同步调整） */
