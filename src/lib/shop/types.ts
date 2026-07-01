@@ -22,6 +22,7 @@ export interface ShopProduct {
 export interface ShopGroupOrder {
   id: string
   productId: string
+  initiatorId?: string
   productName: string
   productImage: string
   unitLabel: string
@@ -55,6 +56,7 @@ export interface ShopOrder {
   status: string
   groupOrderId: string | null
   checkoutBatchId: string | null
+  pickupCode: string | null
   createdAt: string
   paidAt: string | null
   product: {
@@ -65,6 +67,11 @@ export interface ShopOrder {
     splittable: boolean
     status: string
   }
+  purchaseProof: {
+    imageUrl: string
+    note: string | null
+    createdAt: string
+  } | null
 }
 
 export type CheckoutMode = 'direct' | 'create' | 'join'
@@ -79,4 +86,7 @@ export interface CartItem {
   groupOrderId?: string
   amountYuan: string
   unitLabel?: string | null
+  pickupSlotId?: string
+  pickupLocationId?: string
+  userCouponId?: string
 }

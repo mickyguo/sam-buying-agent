@@ -3,6 +3,12 @@ import { shopFetch } from '@/lib/shop/api'
 interface ShopConfig {
   pickupLocation: string
   pickupNotice: string
+  pickupLocations?: Array<{
+    id: string
+    name: string
+    address: string
+    communityTags: string[]
+  }>
 }
 
 let cachedConfig: ShopConfig | null = null

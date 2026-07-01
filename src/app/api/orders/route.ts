@@ -16,6 +16,7 @@ function serializeOrder(orderRow: {
   status: OrderStatusType
   groupOrderId: string | null
   checkoutBatchId: string | null
+  pickupCode: string | null
   createdAt: Date
   paidAt: Date | null
   product: {
@@ -26,6 +27,11 @@ function serializeOrder(orderRow: {
     splittable: boolean
     status: ProductStatusType
   }
+  purchaseProof?: {
+    imageUrl: string
+    note: string | null
+    createdAt: Date
+  } | null
 }) {
   return {
     id: orderRow.id,
@@ -37,6 +43,7 @@ function serializeOrder(orderRow: {
     status: orderRow.status,
     groupOrderId: orderRow.groupOrderId,
     checkoutBatchId: orderRow.checkoutBatchId,
+    pickupCode: orderRow.pickupCode,
     createdAt: orderRow.createdAt.toISOString(),
     paidAt: orderRow.paidAt?.toISOString() ?? null,
     product: {
@@ -47,6 +54,13 @@ function serializeOrder(orderRow: {
       splittable: orderRow.product.splittable,
       status: orderRow.product.status,
     },
+    purchaseProof: orderRow.purchaseProof
+      ? {
+          imageUrl: orderRow.purchaseProof.imageUrl,
+          note: orderRow.purchaseProof.note,
+          createdAt: orderRow.purchaseProof.createdAt.toISOString(),
+        }
+      : null,
   }
 }
 
@@ -55,7 +69,7 @@ export async function GET(request: NextRequest) {
     const userRow = await requireAuthUser(request)
     const orders = await db.query.order.findMany({
       where: eq(order.userId, userRow.id),
-      with: { product: true },
+      with: { product: true, purchaseProof: true },
       orderBy: desc(order.createdAt),
     })
 
@@ -71,6 +85,9 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       productId?: string
       checkoutBatchId?: string
+      pickupSlotId?: string
+      pickupLocationId?: string
+      userCouponId?: string
     }
 
     if (!body.productId) {
@@ -115,12 +132,31 @@ export async function POST(request: NextRequest) {
       return jsonError('订单创建失败', 500)
     }
 
+    if (body.pickupSlotId || body.userCouponId) {
+      const { applyOrderExtras } = await import('@/lib/order-extras')
+      await applyOrderExtras(orderRow.id, {
+        pickupSlotId: body.pickupSlotId,
+        pickupLocationId: body.pickupLocationId,
+        userCouponId: body.userCouponId,
+        orderAmount: productRow.price,
+      })
+    }
+
+    const finalOrder = await db.query.order.findFirst({
+      where: eq(order.id, orderRow.id),
+      with: { product: true },
+    })
+
+    if (!finalOrder) {
+      return jsonError('订单创建失败', 500)
+    }
+
     return jsonOk(
       {
-        orderId: orderWithProduct.id,
-        amount: orderWithProduct.amount,
-        outTradeNo: orderWithProduct.wxOutTradeNo,
-        order: serializeOrder(orderWithProduct),
+        orderId: finalOrder.id,
+        amount: finalOrder.amount,
+        outTradeNo: finalOrder.wxOutTradeNo,
+        order: serializeOrder(finalOrder),
       },
       { status: 201 },
     )

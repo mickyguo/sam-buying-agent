@@ -2,12 +2,14 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import OrderOrderActions from '@/components/shop/OrderOrderActions'
 import ShopShell from '@/components/shop/ShopShell'
 import { shopFetch } from '@/lib/shop/api'
 import { requireShopLogin } from '@/lib/shop/auth'
 import { payOrder, payOrders } from '@/lib/shop/pay'
 import { getProductAvailabilityLabel } from '@/lib/shop/product-availability'
 import { useShopAuth } from '@/lib/shop/use-shop-auth'
+import { shopToastError } from '@/lib/shop/toast'
 import type { ShopOrder } from '@/lib/shop/types'
 
 const STATUS_TEXT: Record<string, string> = {
@@ -99,7 +101,6 @@ export default function ShopOrdersPage() {
   const [payingBatchKey, setPayingBatchKey] = useState('')
   const [merging, setMerging] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [error, setError] = useState('')
 
   const payableOrders = useMemo(
     () => orders.filter(isPayableOrder),
@@ -133,7 +134,7 @@ export default function ShopOrdersPage() {
         ),
       )
     } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败')
+      shopToastError(err, '加载失败')
     } finally {
       setLoading(false)
     }
@@ -182,7 +183,6 @@ export default function ShopOrdersPage() {
     }
 
     setPayingBatchKey(groupKey)
-    setError('')
 
     try {
       requireShopLogin('/shop/orders')
@@ -193,10 +193,7 @@ export default function ShopOrdersPage() {
       }
       await loadOrders()
     } catch (err) {
-      if (err instanceof Error && err.message === '请先登录') {
-        return
-      }
-      setError(err instanceof Error ? err.message : '支付失败')
+      shopToastError(err, '支付失败')
     } finally {
       setPayingBatchKey('')
     }
@@ -208,17 +205,13 @@ export default function ShopOrdersPage() {
     }
 
     setMerging(true)
-    setError('')
     try {
       requireShopLogin('/shop/orders')
       await payOrders(selectedIds)
       setSelectedIds([])
       await loadOrders()
     } catch (err) {
-      if (err instanceof Error && err.message === '请先登录') {
-        return
-      }
-      setError(err instanceof Error ? err.message : '支付失败')
+      shopToastError(err, '支付失败')
     } finally {
       setMerging(false)
     }
@@ -248,7 +241,7 @@ export default function ShopOrdersPage() {
           <p className="text-slate-400">请先登录查看订单</p>
           <Link
             className="mt-4 inline-block rounded-full bg-[#004b87] px-6 py-2 text-sm text-white"
-            href="/shop/profile?redirect=%2Fshop%2Forders"
+            href="/shop/login?redirect=%2Fshop%2Forders"
           >
             去登录
           </Link>
@@ -287,13 +280,7 @@ export default function ShopOrdersPage() {
         </div>
       ) : null}
 
-      {error ? (
-        <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm text-red-600">
-          {error}
-        </div>
-      ) : null}
-
-      {loggedIn && !loading && !error && orders.length === 0 ? (
+      {loggedIn && !loading && orders.length === 0 ? (
         <div className="flex flex-1 items-center justify-center">
           <p className="text-slate-400">暂无订单</p>
         </div>
@@ -408,6 +395,36 @@ export default function ShopOrdersPage() {
                                 查看拼单
                               </Link>
                             ) : null}
+                            {order.pickupCode &&
+                            (order.status === 'DELIVERING' ||
+                              order.status === 'COMPLETED') ? (
+                              <div className="mt-3 rounded-xl bg-[#f8fbfd] p-3">
+                                <p className="text-xs text-slate-500">取货码</p>
+                                <p className="text-2xl font-bold tracking-widest text-[#004b87]">
+                                  {order.pickupCode}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-400">
+                                  到店自提时出示此码
+                                </p>
+                              </div>
+                            ) : null}
+                            {order.purchaseProof ? (
+                              <div className="mt-3">
+                                <p className="text-xs text-slate-500">采购凭证</p>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  alt="采购凭证"
+                                  className="mt-1 max-h-40 rounded-lg border border-slate-100 object-cover"
+                                  src={order.purchaseProof.imageUrl}
+                                />
+                                {order.purchaseProof.note ? (
+                                  <p className="mt-1 text-xs text-slate-400">
+                                    {order.purchaseProof.note}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : null}
+                            <OrderOrderActions orderId={order.id} status={order.status} />
                           </div>
                         </div>
                       </div>

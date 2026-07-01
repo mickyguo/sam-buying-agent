@@ -1,0 +1,15 @@
+{
+  "_说明": "从 Charles 复制 search 成功后的 Response JSON，删掉本行后保存为 response.json",
+  "success": true,
+  "code": "Success",
+  "data": {
+    "spuList": [
+      {
+        "spuId": "1234567",
+        "goodsName": "Member's Mark 瑞士卷",
+        "imageUrl": "https://example.com/image.jpg",
+        "price": 5990
+      }
+    ]
+  }
+}

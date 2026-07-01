@@ -27,6 +27,7 @@ function getAvailableUnits(group: {
 export function serializeGroupOrder(group: {
   id: string
   productId: string
+  initiatorId: string
   totalUnits: number
   filledUnits: number
   reservedUnits: number
@@ -59,6 +60,7 @@ export function serializeGroupOrder(group: {
   return {
     id: group.id,
     productId: group.productId,
+    initiatorId: group.initiatorId,
     productName: group.product.name,
     productImage: group.product.imageUrl,
     unitLabel: group.product.unitLabel ?? '份',
@@ -90,6 +92,7 @@ export async function createGroupOrder(params: {
   productId: string
   units: number
   checkoutBatchId?: string
+  pickupLocationId?: string
 }) {
   const [productRow] = await db
     .select()
@@ -120,6 +123,7 @@ export async function createGroupOrder(params: {
       .values({
         productId: productRow.id,
         initiatorId: params.userId,
+        pickupLocationId: params.pickupLocationId,
         totalUnits: productRow.totalUnits!,
         reservedUnits: params.units,
         expiresAt: getExpireAt(),
@@ -160,6 +164,19 @@ export async function createGroupOrder(params: {
       participation,
     }
   })
+}
+
+export async function createGroupOrderWithLeader(params: {
+  userId: string
+  productId: string
+  units: number
+  checkoutBatchId?: string
+  pickupLocationId?: string
+}) {
+  const result = await createGroupOrder(params)
+  const { incrementLeaderOnCreate } = await import('@/lib/group-leader')
+  await incrementLeaderOnCreate(params.userId)
+  return result
 }
 
 export async function joinGroupOrder(params: {
@@ -252,7 +269,7 @@ export async function joinGroupOrder(params: {
 }
 
 export async function markOrderPaid(orderId: string, wxPayTxnId?: string) {
-  return db.transaction(async (tx) => {
+  const updatedOrder = await db.transaction(async (tx) => {
     const orderRow = await tx.query.order.findFirst({
       where: eq(order.id, orderId),
       with: {
@@ -282,6 +299,9 @@ export async function markOrderPaid(orderId: string, wxPayTxnId?: string) {
       })
       .where(eq(order.id, orderRow.id))
       .returning()
+
+    const { recordOrderEvent } = await import('@/lib/order-timeline')
+    await recordOrderEvent(orderRow.id, 'PAID', '支付成功', undefined, tx)
 
     if (orderRow.type === OrderType.DIRECT) {
       return updatedOrder
@@ -318,11 +338,13 @@ export async function markOrderPaid(orderId: string, wxPayTxnId?: string) {
       .set({
         reservedUnits,
         filledUnits,
-        status: isFilled ? GroupStatus.FILLED : GroupStatus.OPEN,
+        status: isFilled ? GroupStatus.PURCHASING : GroupStatus.OPEN,
       })
       .where(eq(groupOrder.id, groupOrderRow.id))
 
     if (isFilled) {
+      const { recordOrderEvent } = await import('@/lib/order-timeline')
+
       await tx
         .update(order)
         .set({ status: OrderStatus.PURCHASING })
@@ -332,6 +354,14 @@ export async function markOrderPaid(orderId: string, wxPayTxnId?: string) {
             eq(order.status, OrderStatus.PAID),
           ),
         )
+
+      const groupOrders = await tx.query.order.findMany({
+        where: eq(order.groupOrderId, groupOrderRow.id),
+      })
+      for (const o of groupOrders) {
+        await recordOrderEvent(o.id, 'GROUP_FILLED', '拼单已满员，等待采购', undefined, tx)
+        await recordOrderEvent(o.id, 'PURCHASING', '代购采购中', undefined, tx)
+      }
 
       const participants = await tx.query.groupParticipation.findMany({
         where: and(
@@ -347,7 +377,7 @@ export async function markOrderPaid(orderId: string, wxPayTxnId?: string) {
           .map((item) =>
             sendSubscribeMessage({
               openid: item.user.openid!,
-              templateId: 'GROUP_FILLED',
+              templateId: 'group_filled',
               page: `/shop/groups/${groupOrderRow.id}`,
               data: {
                 thing1: { value: orderRow.product.name.slice(0, 20) },
@@ -356,10 +386,35 @@ export async function markOrderPaid(orderId: string, wxPayTxnId?: string) {
             }),
           ),
       )
+
+      const { onGroupFilled } = await import('@/lib/group-leader')
+      await onGroupFilled(groupOrderRow.initiatorId)
+    } else {
+      const { checkGroupAlmostFull } = await import('@/lib/group-almost-full')
+      await checkGroupAlmostFull(groupOrderRow.id, tx)
     }
 
     return updatedOrder
   })
+
+  const paidCount = await db.query.order.findMany({
+    where: and(
+      eq(order.userId, updatedOrder.userId),
+      inArray(order.status, [
+        OrderStatus.PAID,
+        OrderStatus.PURCHASING,
+        OrderStatus.DELIVERING,
+        OrderStatus.COMPLETED,
+      ]),
+    ),
+  })
+
+  if (paidCount.length === 1) {
+    const { rewardReferralOnFirstOrder } = await import('@/lib/referral')
+    await rewardReferralOnFirstOrder(updatedOrder.userId).catch(() => undefined)
+  }
+
+  return updatedOrder
 }
 
 export async function cancelExpiredPendingOrders() {
@@ -492,7 +547,7 @@ export async function expireOpenGroupOrders() {
       if (participation.user.openid) {
         await sendSubscribeMessage({
           openid: participation.user.openid,
-          templateId: 'GROUP_EXPIRED',
+          templateId: 'group_expired',
           page: `/shop/groups/${group.id}`,
           data: {
             thing1: { value: group.product.name.slice(0, 20) },
@@ -501,6 +556,9 @@ export async function expireOpenGroupOrders() {
         }).catch(() => undefined)
       }
     }
+
+    const { onGroupExpired } = await import('@/lib/group-leader')
+    await onGroupExpired(group.initiatorId)
   }
 
   return expiredGroups.length

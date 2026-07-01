@@ -1,0 +1,22 @@
+{
+  "auth_token": "740d926b981716f48b137536a42db3c2c2104348659ec9511bbef6ac085aad69faf434985178ecd18f9d1a3f88fb7dfa6a7216d16f115d25",
+  "device_type": "mini_program",
+  "treq_id": "b87e6dc53dd041a9af91b62dd85368e6.303.17828681830890000",
+  "x_uniq": "2mNIV3DH5ILN+pmT2B9JaA==",
+  "provinceCode": "350000",
+  "cityCode": "350200",
+  "districtCode": "350203",
+  "device_id": "小程序通常没有此项，可留空或删掉",
+  "user_uid": "可选，搜索请求 body 里的 uid / userUid",
+  "store_info_list": [
+    { "storeId": 6758, "storeType": 256, "storeDeliveryAttr": [2, 3, 4, 5, 6, 9, 12, 13] },
+    { "storeId": 6580, "storeType": 2, "storeDeliveryAttr": [7, 13] }
+  ],
+  "address_vo": {
+    "cityName": "",
+    "countryName": "",
+    "detailAddress": "",
+    "districtName": "",
+    "provinceName": ""
+  }
+}

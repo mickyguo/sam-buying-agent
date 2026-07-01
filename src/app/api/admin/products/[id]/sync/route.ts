@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
-import { product } from '@/db/schema'
+import { priceHistory, product } from '@/db/schema'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'
 import { verifyAdminPassword } from '@/lib/admin'
 import { db } from '@/lib/db'
@@ -44,6 +44,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       })
       .where(eq(product.id, id))
       .returning()
+
+    if (updated.price !== productRow.price) {
+      await db.insert(priceHistory).values({
+        productId: updated.id,
+        price: updated.price,
+      })
+      const { notifyPriceDrop } = await import('@/lib/price-alert')
+      await notifyPriceDrop(updated.id, productRow.price, updated.price)
+    }
 
     return jsonOk(serializeProduct(updated))
   } catch (error) {

@@ -100,6 +100,8 @@ export function getAppBaseUrl(request?: NextRequest | Request) {
   return getRequestOrigin(request)
 }
 
+import { resolveSubscribeTemplateId } from '@/lib/wechat-subscribe'
+
 export async function sendSubscribeMessage(params: {
   openid: string
   templateId: string
@@ -108,7 +110,7 @@ export async function sendSubscribeMessage(params: {
 }) {
   const appId = process.env.WECHAT_APP_ID
   const appSecret = process.env.WECHAT_APP_SECRET
-  const templateId = process.env.WECHAT_SUBSCRIBE_TEMPLATE_ID ?? params.templateId
+  const templateId = resolveSubscribeTemplateId(params.templateId)
 
   if (!appId || !appSecret || !templateId) {
     console.warn('[notify] skip subscribe message, config missing')

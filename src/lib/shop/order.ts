@@ -8,16 +8,27 @@ export interface CreatedOrderResult {
 }
 
 export async function createShopOrder(
-  item: Pick<CartItem, 'productId' | 'units' | 'mode' | 'groupOrderId'> & {
+  item: Pick<
+    CartItem,
+    'productId' | 'units' | 'mode' | 'groupOrderId' | 'pickupSlotId' | 'pickupLocationId'
+  > & {
     checkoutBatchId?: string
+    userCouponId?: string
   },
 ): Promise<CreatedOrderResult> {
+  const slotPayload = {
+    pickupSlotId: item.pickupSlotId,
+    pickupLocationId: item.pickupLocationId,
+    userCouponId: item.userCouponId,
+  }
+
   if (item.mode === 'direct') {
     const result = await shopFetch<{ orderId: string }>('/api/orders', {
       method: 'POST',
       body: JSON.stringify({
         productId: item.productId,
         checkoutBatchId: item.checkoutBatchId,
+        ...slotPayload,
       }),
     })
     return { orderId: result.orderId, mode: 'direct' }
@@ -32,6 +43,7 @@ export async function createShopOrder(
           productId: item.productId,
           units: item.units,
           checkoutBatchId: item.checkoutBatchId,
+          ...slotPayload,
         }),
       },
     )
@@ -53,6 +65,7 @@ export async function createShopOrder(
       body: JSON.stringify({
         units: item.units,
         checkoutBatchId: item.checkoutBatchId,
+        ...slotPayload,
       }),
     },
   )

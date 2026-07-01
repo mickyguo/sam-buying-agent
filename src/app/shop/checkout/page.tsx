@@ -2,36 +2,48 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
+import PickupSlotPicker from '@/components/shop/PickupSlotPicker'
 import ShopShell from '@/components/shop/ShopShell'
 import { addCartItem } from '@/lib/shop/cart'
 import { requireShopLogin } from '@/lib/shop/auth'
 import { getShopConfig } from '@/lib/shop/pickup'
 import { shopFetch } from '@/lib/shop/api'
+import { shopToastError } from '@/lib/shop/toast'
 import type { CheckoutMode, ShopProduct } from '@/lib/shop/types'
 
 function CheckoutContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const productId = searchParams.get('productId') ?? ''
-  const units = Number(searchParams.get('units') ?? '1')
   const mode = (searchParams.get('mode') ?? 'direct') as CheckoutMode
   const groupOrderId = searchParams.get('groupOrderId') ?? ''
 
+  const [units, setUnits] = useState(() =>
+    Number(searchParams.get('units') ?? '1'),
+  )
   const [product, setProduct] = useState<ShopProduct | null>(null)
   const [amountYuan, setAmountYuan] = useState('0.00')
   const [pickupLocation, setPickupLocation] = useState('')
   const [pickupNotice, setPickupNotice] = useState('')
+  const [pickupSlotId, setPickupSlotId] = useState('')
+  const [selectedLocationId, setSelectedLocationId] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
 
   useEffect(() => {
     getShopConfig()
       .then((config) => {
         setPickupLocation(config.pickupLocation)
         setPickupNotice(config.pickupNotice)
+        if (config.pickupLocations?.[0]) {
+          setSelectedLocationId(config.pickupLocations[0].id)
+        }
       })
       .catch(() => undefined)
   }, [])
+
+  useEffect(() => {
+    setUnits(Number(searchParams.get('units') ?? '1'))
+  }, [searchParams])
 
   useEffect(() => {
     if (!productId) {
@@ -46,8 +58,25 @@ function CheckoutContent() {
           : item.price
         setAmountYuan((amount / 100).toFixed(2))
       })
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => shopToastError(err, '加载商品失败'))
   }, [productId, units])
+
+  function changeUnits(delta: number) {
+    if (!product?.splittable) {
+      return
+    }
+
+    const maxUnits = product.totalUnits ?? 1
+    const next = Math.min(Math.max(1, units + delta), maxUnits)
+    if (next === units) {
+      return
+    }
+
+    setUnits(next)
+    const query = new URLSearchParams(searchParams.toString())
+    query.set('units', String(next))
+    router.replace(`/shop/checkout?${query.toString()}`, { scroll: false })
+  }
 
   function addToCart() {
     if (!product || submitting) {
@@ -55,12 +84,11 @@ function CheckoutContent() {
     }
 
     setSubmitting(true)
-    setError('')
 
     try {
-      requireShopLogin(
-        `/shop/checkout?${searchParams.toString()}`,
-      )
+      const returnQuery = new URLSearchParams(searchParams.toString())
+      returnQuery.set('units', String(units))
+      requireShopLogin(`/shop/checkout?${returnQuery.toString()}`)
       addCartItem({
         productId: product.id,
         productName: product.name,
@@ -70,13 +98,11 @@ function CheckoutContent() {
         groupOrderId: groupOrderId || undefined,
         amountYuan,
         unitLabel: product.unitLabel,
+        pickupSlotId: pickupSlotId || undefined,
       })
       router.push('/shop/cart')
     } catch (err) {
-      if (err instanceof Error && err.message === '请先登录') {
-        return
-      }
-      setError(err instanceof Error ? err.message : '加入购物车失败')
+      shopToastError(err, '加入购物车失败')
       setSubmitting(false)
     }
   }
@@ -97,11 +123,29 @@ function CheckoutContent() {
               <span>{modeText}</span>
             </div>
             {product.splittable ? (
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
                 <span className="text-slate-500">购买份数</span>
-                <span>
-                  {units} {product.unitLabel}
-                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600 disabled:opacity-40"
+                    disabled={units <= 1}
+                    type="button"
+                    onClick={() => changeUnits(-1)}
+                  >
+                    −
+                  </button>
+                  <span className="min-w-16 text-center">
+                    {units} {product.unitLabel}
+                  </span>
+                  <button
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-600 disabled:opacity-40"
+                    disabled={units >= (product.totalUnits ?? 1)}
+                    type="button"
+                    onClick={() => changeUnits(1)}
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             ) : null}
             <div className="flex justify-between">
@@ -114,13 +158,19 @@ function CheckoutContent() {
               {pickupLocation ? (
                 <p className="mt-1 text-slate-600">{pickupLocation}</p>
               ) : null}
+              <div className="mt-3">
+                <PickupSlotPicker
+                  locationId={selectedLocationId || undefined}
+                  value={pickupSlotId}
+                  onChange={setPickupSlotId}
+                />
+              </div>
             </div>
           </div>
           <p className="mt-4 text-sm text-slate-500">
             {pickupNotice ||
               '加入购物车后，可在购物车中统一提交订单并支付。拼单商品支付成功后需凑满总份数才会进入采购流程。'}
           </p>
-          {error ? <p className="mt-3 text-sm text-red-500">{error}</p> : null}
           <button
             className="mt-6 w-full rounded-full bg-[#004b87] py-3 text-white disabled:opacity-60"
             disabled={submitting}

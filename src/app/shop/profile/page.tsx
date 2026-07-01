@@ -1,55 +1,26 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { FormEvent, Suspense, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import ShopShell from '@/components/shop/ShopShell'
-import {
-  devLogin,
-  loginWithSms,
-  logout,
-  sendSmsCode,
-  startWechatOAuth,
-} from '@/lib/shop/auth'
+import { logout } from '@/lib/shop/auth'
 import { getShopConfig } from '@/lib/shop/pickup'
-import { setShopSession } from '@/lib/shop/storage'
+import { shopFetch } from '@/lib/shop/api'
 import { useShopAuth } from '@/lib/shop/use-shop-auth'
 
-function ProfileContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+export default function ShopProfilePage() {
   const { mounted, user, refresh } = useShopAuth()
-  const [phone, setPhone] = useState('')
-  const [smsCode, setSmsCode] = useState('')
-  const [smsMessage, setSmsMessage] = useState('')
   const [pickupLocation, setPickupLocation] = useState('')
   const [pickupNotice, setPickupNotice] = useState('')
-  const [countdown, setCountdown] = useState(0)
-  const [submitting, setSubmitting] = useState(false)
-
-  const redirectPath = searchParams.get('redirect')
-
-  useEffect(() => {
-    const token = searchParams.get('token')
-    const userRaw = searchParams.get('user')
-    if (!token || !userRaw) {
-      return
-    }
-
-    try {
-      const parsedUser = JSON.parse(decodeURIComponent(userRaw))
-      setShopSession(token, parsedUser)
-      refresh()
-      const redirect = searchParams.get('redirect')
-      if (redirect?.startsWith('/shop') && redirect !== '/shop/profile') {
-        router.replace(redirect)
-        return
-      }
-      router.replace('/shop/profile')
-    } catch {
-      refresh()
-    }
-  }, [searchParams, router, refresh])
+  const [referral, setReferral] = useState<{
+    code: string
+    shareUrl: string
+    totalInvites: number
+    rewardedCount: number
+  } | null>(null)
+  const [coupons, setCoupons] = useState<
+    Array<{ id: string; name: string; discountYuan: string }>
+  >([])
 
   useEffect(() => {
     getShopConfig()
@@ -60,68 +31,31 @@ function ProfileContent() {
       .catch(() => undefined)
   }, [])
 
-  function navigateAfterLogin() {
-    const target = redirectPath?.startsWith('/shop') ? redirectPath : null
-    if (target) {
-      router.replace(target)
+  useEffect(() => {
+    if (!user) {
+      return
     }
-  }
+    shopFetch<typeof referral>('/api/users/me/referral')
+      .then((data) => setReferral(data))
+      .catch(() => undefined)
+    shopFetch<typeof coupons>('/api/users/me/coupons')
+      .then(setCoupons)
+      .catch(() => undefined)
 
-  async function handleSendCode() {
-    setSmsMessage('')
-    try {
-      const result = await sendSmsCode(phone)
-      setSmsMessage(result.message)
-      setCountdown(60)
-      const timer = window.setInterval(() => {
-        setCountdown((value) => {
-          if (value <= 1) {
-            window.clearInterval(timer)
-            return 0
-          }
-          return value - 1
-        })
-      }, 1000)
-    } catch (error) {
-      setSmsMessage(error instanceof Error ? error.message : '发送失败')
+    const refCode = localStorage.getItem('sam_referral_code')
+    if (refCode) {
+      shopFetch('/api/users/me/referral/claim', {
+        method: 'POST',
+        body: JSON.stringify({ code: refCode }),
+      })
+        .then(() => localStorage.removeItem('sam_referral_code'))
+        .catch(() => undefined)
     }
-  }
-
-  async function handleSmsLogin(event: FormEvent) {
-    event.preventDefault()
-    setSubmitting(true)
-    setSmsMessage('')
-    try {
-      await loginWithSms(phone, smsCode)
-      refresh()
-      setSmsMessage('登录成功')
-      navigateAfterLogin()
-    } catch (error) {
-      setSmsMessage(error instanceof Error ? error.message : '登录失败')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  async function handleDevLogin() {
-    await devLogin()
-    refresh()
-    navigateAfterLogin()
-  }
+  }, [user])
 
   function handleLogout() {
     logout()
     refresh()
-    setPhone('')
-    setSmsCode('')
-    setSmsMessage('')
-  }
-
-  function handleWechatLogin() {
-    const returnPath = redirectPath?.startsWith('/shop')
-      ? `/shop/profile?redirect=${encodeURIComponent(redirectPath)}`
-      : '/shop/profile'
-    startWechatOAuth(returnPath)
   }
 
   if (!mounted) {
@@ -156,6 +90,12 @@ function ProfileContent() {
           <p className="mt-2 text-sm text-slate-500">
             登录后可下单、支付与查看订单
           </p>
+          <Link
+            className="mt-4 block w-full rounded-full bg-[#004b87] py-3 text-center text-white"
+            href="/shop/login"
+          >
+            立即登录
+          </Link>
         </div>
       )}
 
@@ -171,78 +111,44 @@ function ProfileContent() {
         ) : null}
       </div>
 
-      {!user ? (
-        <form
-          className="mt-4 rounded-2xl bg-white p-4 shadow-sm"
-          onSubmit={handleSmsLogin}
-        >
-          <h2 className="mb-4 font-semibold">短信验证码登录</h2>
-          {redirectPath ? (
-            <p className="mb-3 text-sm text-amber-700">
-              登录后将返回继续操作
-            </p>
-          ) : null}
-          <input
-            className="mb-3 w-full rounded-xl border border-slate-200 px-4 py-3"
-            type="tel"
-            placeholder="手机号"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            maxLength={11}
-          />
-          <div className="mb-3 flex gap-3">
-            <input
-              className="flex-1 rounded-xl border border-slate-200 px-4 py-3"
-              type="text"
-              placeholder="验证码（本地可用 123456）"
-              value={smsCode}
-              onChange={(event) => setSmsCode(event.target.value)}
-              maxLength={6}
-            />
-            <button
-              className="shrink-0 rounded-xl bg-slate-100 px-4 py-3 text-sm text-[#004b87] disabled:opacity-50"
-              disabled={countdown > 0 || !phone}
-              type="button"
-              onClick={handleSendCode}
-            >
-              {countdown > 0 ? `${countdown}s` : '获取验证码'}
-            </button>
-          </div>
-          <button
-            className="w-full rounded-full bg-[#004b87] py-3 text-white disabled:opacity-60"
-            disabled={submitting || !phone || !smsCode}
-            type="submit"
-          >
-            {submitting ? '登录中...' : '登录'}
-          </button>
-          {smsMessage ? (
-            <p className="mt-3 text-sm text-slate-500">{smsMessage}</p>
-          ) : null}
-          <p className="mt-3 text-xs text-slate-400">
-            本地开发环境固定验证码 123456，无需真实短信。
+      {user && referral ? (
+        <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
+          <h2 className="font-semibold">邀请有礼</h2>
+          <p className="mt-2 text-sm text-slate-500">
+            邀请好友首单，双方得优惠券（已邀请 {referral.totalInvites} 人，已奖励{' '}
+            {referral.rewardedCount} 人）
           </p>
-        </form>
+          <p className="mt-2 font-mono text-lg text-[#004b87]">{referral.code}</p>
+          <button
+            className="mt-3 rounded-full border border-[#004b87] px-4 py-2 text-sm text-[#004b87]"
+            type="button"
+            onClick={() => {
+              navigator.clipboard?.writeText(referral.shareUrl)
+            }}
+          >
+            复制邀请链接
+          </button>
+        </div>
+      ) : null}
+
+      {user && coupons.length > 0 ? (
+        <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
+          <h2 className="font-semibold">我的优惠券</h2>
+          <ul className="mt-3 space-y-2">
+            {coupons.map((coupon) => (
+              <li
+                key={coupon.id}
+                className="flex items-center justify-between rounded-lg bg-[#f8fbfd] px-3 py-2 text-sm"
+              >
+                <span>{coupon.name}</span>
+                <span className="font-medium text-[#004b87]">-¥{coupon.discountYuan}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       <div className="mt-4 rounded-2xl bg-white shadow-sm">
-        {!user ? (
-          <>
-            <button
-              className="block w-full border-b border-slate-100 px-4 py-4 text-left"
-              type="button"
-              onClick={handleWechatLogin}
-            >
-              微信授权登录
-            </button>
-            <button
-              className="block w-full border-b border-slate-100 px-4 py-4 text-left"
-              type="button"
-              onClick={handleDevLogin}
-            >
-              开发模式登录
-            </button>
-          </>
-        ) : null}
         {user ? (
           <button
             className="block w-full border-b border-slate-100 px-4 py-4 text-left"
@@ -260,19 +166,5 @@ function ProfileContent() {
         </Link>
       </div>
     </ShopShell>
-  )
-}
-
-export default function ShopProfilePage() {
-  return (
-    <Suspense
-      fallback={
-        <ShopShell title="我的">
-          <p className="py-16 text-center text-slate-400">加载中...</p>
-        </ShopShell>
-      }
-    >
-      <ProfileContent />
-    </Suspense>
   )
 }

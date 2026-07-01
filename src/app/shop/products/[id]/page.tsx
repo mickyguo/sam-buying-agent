@@ -4,10 +4,12 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import PriceChart from '@/components/shop/PriceChart'
 import ShopShell from '@/components/shop/ShopShell'
 import { addCartItem } from '@/lib/shop/cart'
 import { requireShopLogin } from '@/lib/shop/auth'
 import { shopFetch } from '@/lib/shop/api'
+import { shopToastError } from '@/lib/shop/toast'
 import type { CheckoutMode, ShopGroupOrder, ShopProduct } from '@/lib/shop/types'
 
 export default function ProductDetailPage() {
@@ -19,6 +21,14 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [cartMessage, setCartMessage] = useState('')
+  const [priceData, setPriceData] = useState<{
+    currentPriceYuan: string
+    minPrice30dYuan: string | null
+    isLowest: boolean
+    history: Array<{ priceYuan: string; recordedAt: string }>
+  } | null>(null)
+  const [forecast, setForecast] = useState('')
+  const [alertMessage, setAlertMessage] = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -27,10 +37,20 @@ export default function ProductDetailPage() {
         `/api/group-orders?productId=${params.id}&status=OPEN`,
         { auth: false },
       ).catch(() => [] as ShopGroupOrder[]),
+      shopFetch<typeof priceData>(`/api/products/${params.id}/price-history`, {
+        auth: false,
+      }).catch(() => null),
+      shopFetch<{ message: string }>(`/api/products/${params.id}/group-forecast`, {
+        auth: false,
+      }).catch(() => null),
     ])
-      .then(([productData, groups]) => {
+      .then(([productData, groups, prices, forecastData]) => {
         setProduct(productData)
         setOpenGroups(groups)
+        setPriceData(prices)
+        if (forecastData && 'message' in forecastData) {
+          setForecast((forecastData as { message: string }).message)
+        }
       })
       .finally(() => setLoading(false))
   }, [params.id])
@@ -73,10 +93,7 @@ export default function ProductDetailPage() {
       addCartItem(buildCartItem(mode, groupOrderId))
       setCartMessage('已加入购物车')
     } catch (err) {
-      if (err instanceof Error && err.message === '请先登录') {
-        return
-      }
-      setCartMessage(err instanceof Error ? err.message : '加入购物车失败')
+      shopToastError(err, '加入购物车失败')
     } finally {
       setSubmitting(false)
     }
@@ -95,10 +112,7 @@ export default function ProductDetailPage() {
       addCartItem(buildCartItem(mode, groupOrderId))
       router.push('/shop/cart')
     } catch (err) {
-      if (err instanceof Error && err.message === '请先登录') {
-        return
-      }
-      setCartMessage(err instanceof Error ? err.message : '加入购物车失败')
+      shopToastError(err, '加入购物车失败')
       setSubmitting(false)
     }
   }
@@ -137,6 +151,40 @@ export default function ProductDetailPage() {
         >
           {product.splittable ? '支持按份拼单' : '仅支持整件代购'}
         </span>
+        {forecast ? (
+          <p className="mt-2 text-sm text-slate-500">{forecast}</p>
+        ) : null}
+        {priceData ? (
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <PriceChart
+              currentPriceYuan={priceData.currentPriceYuan}
+              history={priceData.history}
+              isLowest={priceData.isLowest}
+              minPrice30dYuan={priceData.minPrice30dYuan}
+            />
+            <button
+              className="mt-3 rounded-full border border-[#004b87] px-4 py-1.5 text-sm text-[#004b87]"
+              type="button"
+              onClick={async () => {
+                try {
+                  requireShopLogin(`/shop/products/${params.id}`)
+                  const result = await shopFetch<{ message: string }>(
+                    `/api/products/${params.id}/price-alert`,
+                    { method: 'POST', body: JSON.stringify({}) },
+                  )
+                  setAlertMessage(result.message)
+                } catch (err) {
+                  shopToastError(err, '订阅降价通知失败')
+                }
+              }}
+            >
+              降价通知我
+            </button>
+            {alertMessage ? (
+              <p className="mt-2 text-xs text-slate-500">{alertMessage}</p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {product.splittable ? (

@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
-    const redirect = searchParams.get('state') ?? '/shop/profile'
+    const redirect = searchParams.get('state') ?? '/shop/login'
 
     if (!code) {
       return NextResponse.redirect(`${baseUrl}${redirect}?error=missing_code`)
@@ -44,6 +44,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.redirect(target.toString())
   } catch {
-    return NextResponse.redirect(`${baseUrl}/shop/profile?error=oauth_failed`)
+    return NextResponse.redirect(`${baseUrl}/shop/login?error=oauth_failed`)
   }
 }

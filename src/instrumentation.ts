@@ -43,4 +43,22 @@ export async function register() {
       console.error('[cron] expire groups failed', error)
     }
   })
+
+  cron.schedule('*/10 * * * *', async () => {
+    try {
+      const { expirePendingMatchIntents } = await import('@/lib/group-match')
+      const { expireWishPosts } = await import('@/lib/wish-wall')
+      const { scanAlmostFullGroups } = await import('@/lib/group-almost-full')
+      const intentCount = await expirePendingMatchIntents()
+      const wishCount = await expireWishPosts()
+      const almostCount = await scanAlmostFullGroups()
+      if (intentCount > 0 || wishCount > 0 || almostCount > 0) {
+        console.info(
+          `[cron] expired ${intentCount} intents, ${wishCount} wishes, ${almostCount} almost-full scans`,
+        )
+      }
+    } catch (error) {
+      console.error('[cron] expire match intents failed', error)
+    }
+  })
 }

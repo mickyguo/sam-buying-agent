@@ -36,6 +36,10 @@ export function getOrderPayTimeoutMinutes(): number {
   return Number.isFinite(minutes) && minutes > 0 ? minutes : 30
 }
 
+export function generatePickupCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString()
+}
+
 export function getExpireAt(from = new Date()): Date {
   const expireAt = new Date(from)
   expireAt.setHours(expireAt.getHours() + getGroupExpireHours())

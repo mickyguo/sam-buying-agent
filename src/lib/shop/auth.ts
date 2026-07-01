@@ -42,7 +42,7 @@ export function requireShopLogin(returnPath?: string): ShopUser {
       : '/shop')
 
   if (typeof window !== 'undefined') {
-    window.location.href = `/shop/profile?redirect=${encodeURIComponent(redirect)}`
+    window.location.href = `/shop/login?redirect=${encodeURIComponent(redirect)}`
   }
 
   throw new Error('请先登录')
@@ -52,7 +52,7 @@ export function logout() {
   clearShopSession()
 }
 
-export function startWechatOAuth(returnPath = '/shop/profile') {
+export function startWechatOAuth(returnPath = '/shop/login') {
   window.location.href = `/api/auth/wechat/oauth?redirect=${encodeURIComponent(returnPath)}`
 }
 

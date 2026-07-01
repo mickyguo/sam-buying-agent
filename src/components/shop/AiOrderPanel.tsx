@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { addCartItem } from '@/lib/shop/cart'
 import { requireShopLogin } from '@/lib/shop/auth'
+import { shopToastError } from '@/lib/shop/toast'
 import {
   matchedLinesToCartItems,
   parseAndMatchAiOrder,
@@ -57,6 +58,7 @@ export default function AiOrderPanel({
 }: AiOrderPanelProps) {
   const router = useRouter()
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const transcriptRef = useRef('')
   const [input, setInput] = useState('')
   const [listening, setListening] = useState(false)
   const [speechSupported, setSpeechSupported] = useState(false)
@@ -77,8 +79,8 @@ export default function AiOrderPanel({
     }
   }, [])
 
-  function handleParse() {
-    const text = input.trim()
+  function handleParse(textOverride?: string) {
+    const text = (textOverride ?? input).trim()
     if (!text) {
       setError('请输入或说出想买的商品')
       setPreview([])
@@ -130,6 +132,7 @@ export default function AiOrderPanel({
         .join('')
         .trim()
       if (transcript) {
+        transcriptRef.current = transcript
         setInput(transcript)
       }
     }
@@ -141,6 +144,10 @@ export default function AiOrderPanel({
 
     recognition.onend = () => {
       setListening(false)
+      if (transcriptRef.current) {
+        handleParse(transcriptRef.current)
+        transcriptRef.current = ''
+      }
     }
 
     recognitionRef.current = recognition
@@ -175,10 +182,7 @@ export default function AiOrderPanel({
       setUnmatched([])
       setInput('')
     } catch (err) {
-      if (err instanceof Error && err.message === '请先登录') {
-        return
-      }
-      setError(err instanceof Error ? err.message : '加入购物车失败')
+      shopToastError(err, '加入购物车失败')
     } finally {
       setSubmitting(false)
     }
@@ -231,7 +235,7 @@ export default function AiOrderPanel({
           className="flex-1 rounded-full border border-[#004b87] py-2.5 text-sm text-[#004b87] disabled:opacity-60"
           disabled={parsing || !input.trim()}
           type="button"
-          onClick={handleParse}
+          onClick={() => handleParse()}
         >
           {parsing ? '识别中...' : '识别商品'}
         </button>

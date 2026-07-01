@@ -1,0 +1,17 @@
+{
+  "url": "https://api-sams.walmartmobile.cn/api/v1/sams/goods-portal/spu/search",
+  "headers": {
+    "auth-token": "从 Charles Request Headers 复制（注意是连字符 - 不是下划线 _）",
+    "device-id": "从抓包复制",
+    "device-type": "ios",
+    "app-version": "5.0.145.1",
+    "latitude": "24.479834",
+    "longitude": "118.089425",
+    "content-type": "application/json;charset=UTF-8",
+    "User-Agent": "SamClub/5.0.145 (iPhone; iOS 18.0; Scale/3.00)",
+    "t": "如有签名头一并复制",
+    "n": "如有签名头一并复制",
+    "st": "如有签名头一并复制"
+  },
+  "body": "从 Charles Request Body 原样粘贴完整 JSON"
+}

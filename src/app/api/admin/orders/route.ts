@@ -4,6 +4,7 @@ import { groupOrder, order } from '@/db/schema'
 import { OrderStatus } from '@/db/enums'
 import { db } from '@/lib/db'
 import { handleApiError, jsonError, jsonOk } from '@/lib/api-response'
+import { assignPickupCode, notifyPickupReady } from '@/lib/pickup'
 
 export async function GET(request: NextRequest) {
   try {
@@ -96,6 +97,12 @@ export async function PATCH(request: NextRequest) {
       .set({ status: body.status })
       .where(eq(order.id, body.orderId))
       .returning()
+
+    if (body.status === OrderStatus.DELIVERING) {
+      const pickupCode = await assignPickupCode(orderRow.id)
+      await notifyPickupReady(orderRow.id).catch(() => undefined)
+      return jsonOk({ id: orderRow.id, status: orderRow.status, pickupCode })
+    }
 
     return jsonOk({ id: orderRow.id, status: orderRow.status })
   } catch (error) {

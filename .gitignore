@@ -41,3 +41,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 /.idea/
+
+# python sams fetcher (contains auth-token)
+scripts/sams_config.json
+scripts/capture.json
+scripts/search_capture.json
+scripts/__pycache__/
+*.pyc

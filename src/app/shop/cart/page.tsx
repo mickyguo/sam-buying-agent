@@ -22,6 +22,7 @@ import {
   type ProductAvailability,
 } from '@/lib/shop/product-availability'
 import { useShopAuth } from '@/lib/shop/use-shop-auth'
+import { shopToast, shopToastError } from '@/lib/shop/toast'
 import type { CartItem } from '@/lib/shop/types'
 
 const MODE_TEXT: Record<string, string> = {
@@ -43,7 +44,6 @@ export default function ShopCartPage() {
   const [paying, setPaying] = useState(false)
   const [pendingOrderIds, setPendingOrderIds] = useState<string[]>([])
   const [pendingTotalYuan, setPendingTotalYuan] = useState('0.00')
-  const [error, setError] = useState('')
 
   const refreshCart = useCallback(async () => {
     const cartItems = getCartItems()
@@ -136,12 +136,11 @@ export default function ShopCartPage() {
       isProductUnavailable(availability[item.productId]),
     )
     if (hasUnavailableSelected) {
-      setError('所选商品中有已下架或不存在商品，请取消勾选或删除后再提交')
+      shopToast('所选商品中有已下架或不存在商品，请取消勾选或删除后再提交', 'error')
       return
     }
 
     setSubmitting(true)
-    setError('')
 
     try {
       requireShopLogin('/shop/cart')
@@ -162,10 +161,7 @@ export default function ShopCartPage() {
       refreshCart()
       setPendingOrderIds(orderIds)
     } catch (err) {
-      if (err instanceof Error && err.message === '请先登录') {
-        return
-      }
-      setError(err instanceof Error ? err.message : '提交订单失败')
+      shopToastError(err, '提交订单失败')
     } finally {
       setSubmitting(false)
     }
@@ -177,7 +173,6 @@ export default function ShopCartPage() {
     }
 
     setPaying(true)
-    setError('')
 
     try {
       requireShopLogin('/shop/cart')
@@ -186,10 +181,7 @@ export default function ShopCartPage() {
 
       router.replace('/shop/orders')
     } catch (err) {
-      if (err instanceof Error && err.message === '请先登录') {
-        return
-      }
-      setError(err instanceof Error ? err.message : '支付失败')
+      shopToastError(err, '支付失败')
     } finally {
       setPaying(false)
     }
@@ -208,7 +200,7 @@ export default function ShopCartPage() {
       {mounted && !loggedIn ? (
         <div className="mb-4 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
           下单与支付需先
-          <Link className="mx-1 font-semibold text-[#004b87]" href="/shop/profile?redirect=%2Fshop%2Fcart">
+          <Link className="mx-1 font-semibold text-[#004b87]" href="/shop/login?redirect=%2Fshop%2Fcart">
             登录
           </Link>
         </div>
@@ -314,7 +306,7 @@ export default function ShopCartPage() {
                 部分商品已下架或不存在，建议删除；不影响勾选可用商品结算
               </p>
             ) : null}
-            {error ? <p className="mt-3 text-sm text-red-500">{error}</p> : null}
+
             <button
               className="mt-4 w-full rounded-full bg-[#004b87] py-3 text-white disabled:opacity-60"
               disabled={submitting || !canCheckout || !hasSelectedItems}
@@ -340,7 +332,6 @@ export default function ShopCartPage() {
             已提交 {pendingOrderIds.length} 笔订单，请完成支付。
           </p>
           <p className="mt-2 text-lg font-bold text-[#004b87]">应付 ¥{pendingTotalYuan}</p>
-          {error ? <p className="mt-3 text-sm text-red-500">{error}</p> : null}
           {canCheckout ? (
             <button
               className="mt-4 w-full rounded-full bg-[#004b87] py-3 text-white disabled:opacity-60"
@@ -353,7 +344,7 @@ export default function ShopCartPage() {
           ) : (
             <Link
               className="mt-4 block w-full rounded-full bg-[#004b87] py-3 text-center text-white"
-              href="/shop/profile?redirect=%2Fshop%2Fcart"
+              href="/shop/login?redirect=%2Fshop%2Fcart"
             >
               登录后支付
             </Link>
