@@ -7,10 +7,14 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'images.unsplash.com',
+        port: '',
+        pathname: '/**',
       },
       {
         protocol: 'https',
         hostname: 'sam-material-online-1302115363.file.myqcloud.com',
+        port: '',
+        pathname: '/**',
       },
     ],
   },

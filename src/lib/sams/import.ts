@@ -1,3 +1,5 @@
+import { normalizeImageUrl } from '@/lib/utils'
+
 export interface SamsImportPreview {
   externalId: string
   name: string
@@ -143,7 +145,7 @@ function extractFromJson(data: Record<string, unknown>): Partial<SamsImportPrevi
 
   return {
     name: name?.trim(),
-    imageUrl: imageUrl?.trim(),
+    imageUrl: imageUrl ? normalizeImageUrl(imageUrl.trim()) : undefined,
     priceCents: priceCents ?? undefined,
     description: description?.trim(),
   }

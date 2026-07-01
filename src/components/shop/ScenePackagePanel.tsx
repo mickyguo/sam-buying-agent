@@ -1,6 +1,6 @@
 'use client'
 
-import Image from 'next/image'
+import ShopImage from '@/components/shop/ShopImage'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { addCartItem } from '@/lib/shop/cart'
@@ -86,7 +86,7 @@ export default function ScenePackagePanel({ onScenePrompt }: ScenePackagePanelPr
             className="w-40 shrink-0 rounded-xl border border-slate-100 bg-[#f8fbfd] p-3"
           >
             {pkg.coverImage ? (
-              <Image
+              <ShopImage
                 className="h-20 w-full rounded-lg object-cover"
                 src={pkg.coverImage}
                 alt={pkg.name}

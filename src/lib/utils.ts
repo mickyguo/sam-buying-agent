@@ -1,3 +1,17 @@
+/** 规范化外部图片 URL（修复山姆 CDN 常见的双斜杠路径） */
+export function normalizeImageUrl(url: string): string {
+  const trimmed = url.trim()
+  if (!trimmed) return trimmed
+
+  try {
+    const parsed = new URL(trimmed)
+    parsed.pathname = parsed.pathname.replace(/\/{2,}/g, '/')
+    return parsed.toString()
+  } catch {
+    return trimmed.replace(/([^:]\/)\/+/g, '$1')
+  }
+}
+
 export function formatPrice(cents: number): string {
   return (cents / 100).toFixed(2)
 }

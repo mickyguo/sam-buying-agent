@@ -13,6 +13,7 @@ import {
   generateOrderNo,
   getExpireAt,
   getOrderPayTimeoutMinutes,
+  normalizeImageUrl,
 } from '@/lib/utils'
 import { sendSubscribeMessage } from '@/lib/wechat'
 
@@ -62,7 +63,7 @@ export function serializeGroupOrder(group: {
     productId: group.productId,
     initiatorId: group.initiatorId,
     productName: group.product.name,
-    productImage: group.product.imageUrl,
+    productImage: normalizeImageUrl(group.product.imageUrl),
     unitLabel: group.product.unitLabel ?? '份',
     totalUnits: group.totalUnits,
     filledUnits: group.filledUnits,

@@ -1,6 +1,6 @@
 'use client'
 
-import Image from 'next/image'
+import ShopImage from '@/components/shop/ShopImage'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -248,7 +248,7 @@ export default function ShopCartPage() {
                   />
                   <span className="sr-only">选择 {item.productName}</span>
                 </label>
-                <Image
+                <ShopImage
                   className={`h-20 w-20 shrink-0 rounded-xl object-cover${
                     unavailable ? ' grayscale' : ''
                   }`}

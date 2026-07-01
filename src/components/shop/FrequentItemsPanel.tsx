@@ -1,6 +1,6 @@
 'use client'
 
-import Image from 'next/image'
+import ShopImage from '@/components/shop/ShopImage'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { shopFetch } from '@/lib/shop/api'
@@ -41,7 +41,7 @@ export default function FrequentItemsPanel() {
             className="w-28 shrink-0"
             href={`/shop/products/${item.productId}`}
           >
-            <Image
+            <ShopImage
               className="h-20 w-full rounded-lg object-cover"
               src={item.imageUrl}
               alt={item.name}

@@ -1,6 +1,6 @@
 'use client'
 
-import Image from 'next/image'
+import ShopImage from '@/components/shop/ShopImage'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
@@ -40,7 +40,7 @@ function ShopHomeContent() {
   }, [searchParams])
 
   return (
-    <ShopShell title="山姆商品">
+    <ShopShell title="sam商品">
       {loading ? <p className="py-16 text-center text-slate-400">加载中...</p> : null}
       {!loading && products.length === 0 ? (
         <p className="py-16 text-center text-slate-400">暂无商品</p>
@@ -65,7 +65,7 @@ function ShopHomeContent() {
             className="flex gap-4 rounded-2xl bg-white p-4 shadow-sm"
             href={`/shop/products/${product.id}`}
           >
-            <Image
+            <ShopImage
               className="h-24 w-24 rounded-xl object-cover"
               src={product.imageUrl}
               alt={product.name}

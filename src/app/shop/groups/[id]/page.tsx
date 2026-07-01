@@ -1,6 +1,6 @@
 'use client'
 
-import Image from 'next/image'
+import ShopImage from '@/components/shop/ShopImage'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import ShopShell from '@/components/shop/ShopShell'
@@ -92,7 +92,7 @@ export default function GroupDetailPage() {
     <ShopShell title="拼单详情">
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
         <div className="relative h-40 w-full bg-slate-100">
-          <Image
+          <ShopImage
             className="object-cover"
             src={group.productImage}
             alt={group.productName}
@@ -147,7 +147,7 @@ export default function GroupDetailPage() {
               className="flex items-center gap-3 border-t border-slate-100 py-3"
             >
               {item.user.avatarUrl ? (
-                <Image
+                <ShopImage
                   className="h-10 w-10 rounded-full object-cover"
                   src={item.user.avatarUrl}
                   alt={item.user.nickname ?? '用户'}

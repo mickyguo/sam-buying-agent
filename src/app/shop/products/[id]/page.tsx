@@ -1,6 +1,6 @@
 'use client'
 
-import Image from 'next/image'
+import ShopImage from '@/components/shop/ShopImage'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -131,7 +131,7 @@ export default function ProductDetailPage() {
 
   return (
     <ShopShell title="商品详情">
-      <Image
+      <ShopImage
         className="mb-4 h-56 w-full rounded-2xl object-cover"
         src={product.imageUrl}
         alt={product.name}

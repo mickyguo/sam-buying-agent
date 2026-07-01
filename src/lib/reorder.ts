@@ -2,7 +2,7 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import { order, pickupSlot, product } from '@/db/schema'
 import { OrderStatus, ProductStatus } from '@/db/enums'
 import { db } from '@/lib/db'
-import { calcSplitAmount } from '@/lib/utils'
+import { calcSplitAmount, normalizeImageUrl } from '@/lib/utils'
 
 export async function buildReorderItems(orderId: string, userId: string) {
   const orderRow = await db.query.order.findFirst({
@@ -28,7 +28,7 @@ export async function buildReorderItems(orderId: string, userId: string) {
   return {
     productId: orderRow.productId,
     productName: orderRow.product.name,
-    productImage: orderRow.product.imageUrl,
+    productImage: normalizeImageUrl(orderRow.product.imageUrl),
     units: orderRow.units,
     mode: orderRow.product.splittable ? ('create' as const) : ('direct' as const),
     amountYuan: (amount / 100).toFixed(2),
@@ -62,7 +62,7 @@ export async function getFrequentItems(userId: string, limit = 6) {
     items.push({
       productId: productRow.id,
       name: productRow.name,
-      imageUrl: productRow.imageUrl,
+      imageUrl: normalizeImageUrl(productRow.imageUrl),
       priceYuan: (productRow.price / 100).toFixed(2),
       totalUnits: row.totalUnits,
       orderCount: row.orderCount,

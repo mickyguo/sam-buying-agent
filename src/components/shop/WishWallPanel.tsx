@@ -1,6 +1,6 @@
 'use client'
 
-import Image from 'next/image'
+import ShopImage from '@/components/shop/ShopImage'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { shopFetch } from '@/lib/shop/api'
@@ -126,7 +126,7 @@ export default function WishWallPanel({ products }: WishWallPanelProps) {
         <div className="mt-4 space-y-3">
           {posts.slice(0, 5).map((post) => (
             <div key={post.id} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-              <Image
+              <ShopImage
                 className="h-12 w-12 rounded-lg object-cover"
                 src={post.product.imageUrl}
                 alt={post.product.name}

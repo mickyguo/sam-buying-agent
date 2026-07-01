@@ -2,6 +2,7 @@ import { count, eq } from 'drizzle-orm'
 import { groupOrder, order, product } from '@/db/schema'
 import { ProductStatus, type ProductStatus as ProductStatusType } from '@/db/enums'
 import { db } from '@/lib/db'
+import { normalizeImageUrl } from '@/lib/utils'
 
 export interface ProductInput {
   name: string
@@ -33,7 +34,7 @@ export function serializeProduct(productRow: {
   return {
     id: productRow.id,
     name: productRow.name,
-    imageUrl: productRow.imageUrl,
+    imageUrl: normalizeImageUrl(productRow.imageUrl),
     price: productRow.price,
     priceYuan: (productRow.price / 100).toFixed(2),
     splittable: productRow.splittable,

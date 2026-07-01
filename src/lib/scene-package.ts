@@ -2,6 +2,7 @@ import { asc, eq } from 'drizzle-orm'
 import { product, scenePackage, scenePackageItem } from '@/db/schema'
 import { ProductStatus } from '@/db/enums'
 import { db } from '@/lib/db'
+import { normalizeImageUrl } from '@/lib/utils'
 
 export async function listScenePackages() {
   const packages = await db.query.scenePackage.findMany({
@@ -16,14 +17,14 @@ export async function listScenePackages() {
     id: pkg.id,
     name: pkg.name,
     description: pkg.description,
-    coverImage: pkg.coverImage,
+    coverImage: pkg.coverImage ? normalizeImageUrl(pkg.coverImage) : pkg.coverImage,
     promptHint: pkg.promptHint,
     items: pkg.items
       .filter((item) => item.product.status === ProductStatus.ACTIVE)
       .map((item) => ({
         productId: item.productId,
         productName: item.product.name,
-        productImage: item.product.imageUrl,
+        productImage: normalizeImageUrl(item.product.imageUrl),
         units: item.units,
         splittable: item.product.splittable,
         priceYuan: (item.product.price / 100).toFixed(2),
@@ -46,7 +47,7 @@ export async function resolveScenePackageCartItems(scenePackageId: string) {
     .map((item) => ({
       productId: item.productId,
       productName: item.product.name,
-      productImage: item.product.imageUrl,
+      productImage: normalizeImageUrl(item.product.imageUrl),
       units: item.units,
       mode: item.product.splittable ? ('create' as const) : ('direct' as const),
       unitLabel: item.product.unitLabel,
