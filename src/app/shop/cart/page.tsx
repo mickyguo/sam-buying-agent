@@ -309,6 +309,7 @@ export default function ShopCartPage() {
 
             <button
               className="mt-4 w-full rounded-full bg-[#004b87] py-3 text-white disabled:opacity-60"
+              data-testid="submit-orders-button"
               disabled={submitting || !canCheckout || !hasSelectedItems}
               type="button"
               onClick={submitOrders}
@@ -335,6 +336,7 @@ export default function ShopCartPage() {
           {canCheckout ? (
             <button
               className="mt-4 w-full rounded-full bg-[#004b87] py-3 text-white disabled:opacity-60"
+              data-testid="confirm-pay-button"
               disabled={paying}
               type="button"
               onClick={confirmPay}

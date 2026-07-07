@@ -10,6 +10,16 @@ interface Code2SessionResponse {
 }
 
 export async function code2Session(code: string): Promise<Code2SessionResponse> {
+  if (
+    process.env.NODE_ENV === 'development' &&
+    /^(h5_|e2e_)/.test(code)
+  ) {
+    return {
+      openid: `dev_openid_${code}`,
+      session_key: 'dev_session_key',
+    }
+  }
+
   const appId = process.env.WECHAT_APP_ID
   const appSecret = process.env.WECHAT_APP_SECRET
 

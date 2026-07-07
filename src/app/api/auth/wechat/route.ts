@@ -31,10 +31,13 @@ export async function POST(request: NextRequest) {
       .onConflictDoUpdate({
         target: user.openid,
         set: {
-          nickname: body.nickname,
-          avatarUrl: body.avatarUrl,
-          name: body.nickname ?? undefined,
-          image: body.avatarUrl ?? undefined,
+          ...(body.nickname
+            ? { nickname: body.nickname, name: body.nickname }
+            : {}),
+          ...(body.avatarUrl
+            ? { avatarUrl: body.avatarUrl, image: body.avatarUrl }
+            : {}),
+          updatedAt: new Date(),
         },
       })
       .returning()

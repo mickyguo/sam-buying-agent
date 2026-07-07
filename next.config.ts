@@ -1,6 +1,10 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  transpilePackages: ['geist'],
+  turbopack: {
+    root: process.cwd(),
+  },
   serverExternalPackages: ['pg'],
   images: {
     remotePatterns: [

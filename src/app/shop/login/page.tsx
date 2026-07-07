@@ -190,6 +190,7 @@ function LoginContent() {
         </button>
         <button
           className="block w-full border-b border-slate-100 px-4 py-4 text-left"
+          data-testid="dev-login-button"
           type="button"
           onClick={handleDevLogin}
         >

@@ -207,6 +207,7 @@ export default function ProductDetailPage() {
           <div className="mt-4 flex gap-3">
             <button
               className="flex-1 rounded-full border border-[#004b87] py-3 text-[#004b87] disabled:opacity-60"
+              data-testid="add-to-cart-button"
               disabled={submitting}
               type="button"
               onClick={() => addToCart('create')}
@@ -231,6 +232,7 @@ export default function ProductDetailPage() {
           <div className="flex gap-3">
             <button
               className="flex-1 rounded-full border border-[#004b87] py-3 text-[#004b87] disabled:opacity-60"
+              data-testid="add-to-cart-button"
               disabled={submitting}
               type="button"
               onClick={() => addToCart('direct')}

@@ -130,6 +130,37 @@ cp scripts/sams_config.example.json scripts/sams_config.json
 
 开发阶段可直接使用「开发模式登录」或短信验证码 `123456`。
 
+## 测试
+
+项目使用 **Vitest**（单元/集成）与 **Playwright**（H5 商城 E2E）。
+
+```bash
+# 单元测试（无需数据库）
+pnpm test:unit
+
+# 集成测试（需要 .env 中 DATABASE_URL）
+pnpm test:integration
+
+# E2E 测试（H5 商城主流程，会自动启动 pnpm dev）
+pnpm exec playwright install chromium   # 首次运行需安装浏览器
+pnpm test:e2e
+
+# E2E 可视化调试
+pnpm test:e2e:ui
+```
+
+E2E 环境要求：
+
+| 条件 | 说明 |
+| ---- | ---- |
+| `DATABASE_URL` | PostgreSQL 已迁移（`pnpm db:push`） |
+| 开发模式支付 | 未配置 `WECHAT_MCH_*` 时自动模拟支付 |
+| 开发模式登录 | 测试使用「开发模式登录」，无需真实微信 |
+
+E2E 会在 `globalSetup` 插入前缀为 `e2e-` 的测试商品，运行结束后自动清理相关订单与商品。
+
+若本机 `3000` 端口已有 `pnpm dev` 在跑，Playwright 会复用该服务（需包含最新代码）；否则会自动启动开发服务器。
+
 ## 目录结构
 
 ```
@@ -140,6 +171,8 @@ src/lib/shop/      # H5 客户端工具
 src/lib/sams/      # 山姆商品导入
 drizzle/             # Drizzle 种子数据
 src/db/              # Drizzle schema 与枚举
+e2e/                 # Playwright E2E 测试
+tests/               # Vitest 单元/集成测试
 ```
 
 ## 拼单规则
