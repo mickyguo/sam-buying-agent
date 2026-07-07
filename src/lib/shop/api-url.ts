@@ -7,13 +7,14 @@ export function resolveApiUrl(path: string): string {
   }
 
   const normalized = path.startsWith('/') ? path : `/${path}`
+  const publicBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '')
 
   if (typeof window !== 'undefined') {
-    return appendPreviewAuthParams(`${window.location.origin}${normalized}`)
+    const origin = publicBase || window.location.origin
+    return appendPreviewAuthParams(`${origin}${normalized}`)
   }
 
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? ''
-  return base ? `${base}${normalized}` : normalized
+  return publicBase ? `${publicBase}${normalized}` : normalized
 }
 
 /** EdgeOne 预览域名要求 eo_token/eo_time，页面 URL 有则 API 请求一并带上 */

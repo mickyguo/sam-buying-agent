@@ -102,7 +102,7 @@ cp scripts/sams_config.example.json scripts/sams_config.json
 | `DATABASE_URL`                        | PostgreSQL 连接字符串        |
 | `JWT_SECRET`                          | JWT 密钥                     |
 | `WECHAT_APP_ID` / `WECHAT_APP_SECRET` | 微信公众号 / 网页授权        |
-| `NEXT_PUBLIC_API_BASE_URL`            | 可选；本地开发默认 `http://localhost:3000`。线上 H5 自动用当前域名，可不配 |
+| `NEXT_PUBLIC_API_BASE_URL`            | 可选；本地开发默认 `http://localhost:3000`。线上 H5 自动用当前域名，可不配。ESA 静态部署时**必填**，指向独立 API 服务地址 |
 | `ADMIN_PASSWORD`                      | 管理后台密码                 |
 | `WECHAT_MCH_*`                        | 微信支付商户配置             |
 | `PICKUP_LOCATION`                     | 自提点地址与取货时间         |
@@ -160,6 +160,46 @@ E2E 环境要求：
 E2E 会在 `globalSetup` 插入前缀为 `e2e-` 的测试商品，运行结束后自动清理相关订单与商品。
 
 若本机 `3000` 端口已有 `pnpm dev` 在跑，Playwright 会复用该服务（需包含最新代码）；否则会自动启动开发服务器。
+
+## 阿里云 ESA Pages 部署
+
+ESA 仅支持 **Next.js 静态导出**（产物目录 `./out`）。本仓库通过 `esa.jsonc` + `pnpm run build:esa` 构建 H5 商城静态站；**API、管理后台、定时任务需单独部署**（如云服务器 `pnpm build && pnpm start`、函数计算 FC 等）。
+
+### 架构
+
+```
+ESA Pages（静态 H5 /shop）  ──NEXT_PUBLIC_API_BASE_URL──▶  API 服务（完整 Next.js 或独立后端）
+```
+
+### 构建配置
+
+根目录 `esa.jsonc` 已配置：
+
+- 构建命令：`pnpm run build:esa`
+- 静态资源目录：`./out`
+- 未匹配路径回退：`singlePageApplication`（返回 `index.html`）
+
+本地验证：
+
+```bash
+pnpm run build:esa
+# 产物在 ./out
+```
+
+### ESA 控制台环境变量
+
+| 变量 | 说明 |
+| ---- | ---- |
+| `DATABASE_URL` | 构建时预渲染 `/shop/products/[id]`、`/shop/groups/[id]` 页面（从数据库读取 ID 列表） |
+| `NEXT_PUBLIC_API_BASE_URL` | **运行时必填**，H5 调用的 API 根地址，如 `https://api.example.com` |
+
+构建完成后在 ESA 控制台绑定自定义域名，并确保 API 服务已配置 CORS（`next.config.ts` 中 `/api/*` 已允许跨域）。
+
+### 限制说明
+
+- 构建后新建的拼单/商品，直链访问需重新构建部署，或依赖 ESA 的 SPA 回退（体验有限）
+- 管理后台 `/admin`、API 文档 `/api-docs` 不包含在 ESA 静态包内
+- 定时任务（拼单过期、订单取消）需在 API 服务端或 ESA/FC 定时触发器单独配置
 
 ## 目录结构
 

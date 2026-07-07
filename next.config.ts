@@ -1,12 +1,16 @@
 import type { NextConfig } from 'next'
 
+const isEsaDeploy = process.env.ESA_DEPLOY === 'true'
+
 const nextConfig: NextConfig = {
+  ...(isEsaDeploy ? { output: 'export' as const } : {}),
   transpilePackages: ['geist'],
   turbopack: {
     root: process.cwd(),
   },
   serverExternalPackages: ['pg'],
   images: {
+    unoptimized: isEsaDeploy,
     remotePatterns: [
       {
         protocol: 'https',

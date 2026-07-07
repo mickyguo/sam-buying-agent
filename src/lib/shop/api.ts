@@ -12,7 +12,7 @@ function parseJsonBody<T>(text: string, url: string, status: number): T {
 
     throw new Error(
       trimmed.startsWith('<!')
-        ? `接口返回了 HTML 页面（${status} ${url}），请确认 EdgeOne 以 Next.js 全栈模式部署且输出目录为 .next`
+        ? `接口返回了 HTML 页面（${status} ${url}），请确认 API 服务已部署且 NEXT_PUBLIC_API_BASE_URL 配置正确`
         : `接口返回非 JSON（${status} ${url}）：${trimmed.slice(0, 120)}`,
     )
   }
