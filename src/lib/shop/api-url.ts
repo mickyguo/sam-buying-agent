@@ -1,20 +1,33 @@
+import {
+  getShopApiBase,
+  isStaticHostingBuild,
+  missingApiBaseMessage,
+} from '@/lib/shop/runtime-config'
+
 const EDGEONE_PREVIEW_PARAMS = ['eo_token', 'eo_time'] as const
 
-/** 浏览器端始终用当前站点 origin，避免构建时写入 localhost */
+/** 浏览器端优先读运行时配置 / NEXT_PUBLIC_API_BASE_URL，静态托管不回退到当前域名 */
 export function resolveApiUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) {
     return appendPreviewAuthParams(path)
   }
 
   const normalized = path.startsWith('/') ? path : `/${path}`
-  const publicBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '')
+  const publicBase = getShopApiBase()
 
-  if (typeof window !== 'undefined') {
-    const origin = publicBase || window.location.origin
-    return appendPreviewAuthParams(`${origin}${normalized}`)
+  if (publicBase) {
+    return appendPreviewAuthParams(`${publicBase}${normalized}`)
   }
 
-  return publicBase ? `${publicBase}${normalized}` : normalized
+  if (isStaticHostingBuild()) {
+    throw new Error(missingApiBaseMessage())
+  }
+
+  if (typeof window !== 'undefined') {
+    return appendPreviewAuthParams(`${window.location.origin}${normalized}`)
+  }
+
+  return normalized
 }
 
 /** EdgeOne 预览域名要求 eo_token/eo_time，页面 URL 有则 API 请求一并带上 */

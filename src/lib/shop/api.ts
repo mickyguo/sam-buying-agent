@@ -1,4 +1,5 @@
 import { isEdgeOnePreviewAuthHtml, resolveApiUrl } from '@/lib/shop/api-url'
+import { ensureShopRuntimeConfig } from '@/lib/shop/runtime-config'
 import { getShopToken } from '@/lib/shop/storage'
 
 function parseJsonBody<T>(text: string, url: string, status: number): T {
@@ -30,6 +31,8 @@ export async function shopFetch<T>(
   path: string,
   options: RequestInit & { auth?: boolean } = {},
 ): Promise<T> {
+  await ensureShopRuntimeConfig()
+
   const { auth = true, headers, ...rest } = options
   const requestHeaders = new Headers(headers)
 

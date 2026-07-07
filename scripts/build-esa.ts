@@ -1,4 +1,4 @@
-import { access, mkdir, rename, rm } from 'node:fs/promises'
+import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 
@@ -56,14 +56,35 @@ async function restoreServerRoutes() {
   }
 }
 
+async function writeRuntimeConfig() {
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? ''
+  const configPath = join(root, 'public/shop-runtime-config.json')
+  const payload = JSON.stringify({ apiBaseUrl }, null, 2)
+
+  await writeFile(configPath, `${payload}\n`, 'utf8')
+
+  if (apiBaseUrl) {
+    console.log(`[esa] 已写入 shop-runtime-config.json，API 地址: ${apiBaseUrl}`)
+  } else {
+    console.warn(
+      '[esa] 警告: 未设置 NEXT_PUBLIC_API_BASE_URL，H5 将无法请求 API。请在 ESA 构建环境变量中配置后重新部署。',
+    )
+  }
+}
+
 async function main() {
   console.log('[esa] 暂存服务端路由（API / 管理后台需单独部署，见 README ESA 章节）')
+  await writeRuntimeConfig()
   await stashServerRoutes()
 
   try {
     const result = spawnSync('pnpm', ['exec', 'next', 'build'], {
       cwd: root,
-      env: { ...process.env, ESA_DEPLOY: 'true' },
+      env: {
+        ...process.env,
+        ESA_DEPLOY: 'true',
+        NEXT_PUBLIC_STATIC_HOSTING: 'true',
+      },
       stdio: 'inherit',
     })
     if (result.status !== 0) {

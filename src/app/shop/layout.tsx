@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import ShopRuntimeBootstrap from '@/components/shop/ShopRuntimeBootstrap'
 
 export const metadata: Metadata = {
   title: 'sam',
@@ -17,5 +18,9 @@ export default function ShopLayout({
 }: {
   children: React.ReactNode
 }) {
-  return <div className="min-h-dvh w-full bg-[#f5f7fa]">{children}</div>
+  return (
+    <ShopRuntimeBootstrap>
+      <div className="min-h-dvh w-full bg-[#f5f7fa]">{children}</div>
+    </ShopRuntimeBootstrap>
+  )
 }

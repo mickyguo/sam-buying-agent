@@ -1,3 +1,4 @@
+import { ensureShopRuntimeConfig } from '@/lib/shop/runtime-config'
 import { resolveApiUrl } from '@/lib/shop/api-url'
 
 export type ProductAvailability = 'available' | 'inactive' | 'missing'
@@ -24,6 +25,7 @@ export async function fetchProductAvailability(
   productId: string,
 ): Promise<ProductAvailability> {
   try {
+    await ensureShopRuntimeConfig()
     const response = await fetch(resolveApiUrl(`/api/products/${productId}`), {
       cache: 'no-store',
     })

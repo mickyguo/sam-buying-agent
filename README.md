@@ -188,10 +188,16 @@ pnpm run build:esa
 
 ### ESA 控制台环境变量
 
+在 **构建环境变量**（不是仅运行时）中配置：
+
 | 变量 | 说明 |
 | ---- | ---- |
 | `DATABASE_URL` | 构建时预渲染 `/shop/products/[id]`、`/shop/groups/[id]` 页面（从数据库读取 ID 列表） |
-| `NEXT_PUBLIC_API_BASE_URL` | **运行时必填**，H5 调用的 API 根地址，如 `https://api.example.com` |
+| `NEXT_PUBLIC_API_BASE_URL` | **必填**，独立 API 服务根地址，如 `https://api.example.com`（不要末尾 `/`） |
+
+构建时会生成 `public/shop-runtime-config.json` 并打入静态包，H5 从该文件读取 API 地址，**不会**再向 ESA 静态域名请求 `/api/*`（否则会返回 HTML）。
+
+若 `/api/products` 返回 HTML，说明 `NEXT_PUBLIC_API_BASE_URL` 未在构建阶段配置，请补全后重新部署。
 
 构建完成后在 ESA 控制台绑定自定义域名，并确保 API 服务已配置 CORS（`next.config.ts` 中 `/api/*` 已允许跨域）。
 

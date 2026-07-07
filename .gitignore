@@ -52,3 +52,6 @@ scripts/capture.json
 scripts/search_capture.json
 scripts/__pycache__/
 *.pyc
+
+# ESA 构建时由 NEXT_PUBLIC_API_BASE_URL 生成
+public/shop-runtime-config.json
